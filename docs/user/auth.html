@@ -105,11 +105,13 @@
     <script>
         function loginWithLinkedIn() {
             // LinkedIn OAuth Configuration
-            const LINKEDIN_CLIENT_ID = '86bd4udvjkab6n'; // This will be replaced by environment variables in production
+            const LINKEDIN_CLIENT_ID = '86bd4udvjkab6n';
             const REDIRECT_URI = 'https://cholebhature.netlify.app/docs/user/callback.html';
             
-            // Required LinkedIn API scopes - using the same scopes as localhost version
+            // Required LinkedIn API scopes - updated to include r_liteprofile and r_emailaddress
             const LINKEDIN_SCOPES = [
+                'r_liteprofile',
+                'r_emailaddress',
                 'openid',
                 'profile',
                 'email'
