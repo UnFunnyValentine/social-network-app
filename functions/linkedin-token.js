@@ -30,7 +30,7 @@ exports.handler = async function(event, context) {
 
     console.log('Token response received');
     
-    // Get the user profile
+    // Get the user profile using the basic profile endpoint
     const profileResponse = await axios.get('https://api.linkedin.com/v2/me', {
       headers: {
         'Authorization': `Bearer ${tokenResponse.data.access_token}`
@@ -39,17 +39,24 @@ exports.handler = async function(event, context) {
 
     console.log('Profile data received');
     
-    // Get the user's email
-    const emailResponse = await axios.get('https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))', {
-      headers: {
-        'Authorization': `Bearer ${tokenResponse.data.access_token}`
-      }
-    });
+    // Get the user's email if the email scope is granted
+    let emailData = null;
+    try {
+      const emailResponse = await axios.get('https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))', {
+        headers: {
+          'Authorization': `Bearer ${tokenResponse.data.access_token}`
+        }
+      });
+      emailData = emailResponse.data.elements?.[0]?.['handle~']?.emailAddress || null;
+    } catch (emailError) {
+      console.log('Email retrieval error:', emailError.message);
+      // Continue without email if not available
+    }
 
     // Combine profile and email data
     const userData = {
       ...profileResponse.data,
-      email: emailResponse.data.elements?.[0]?.['handle~']?.emailAddress || null
+      email: emailData
     };
 
     // Return the combined data
