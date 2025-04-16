@@ -108,10 +108,9 @@
             const LINKEDIN_CLIENT_ID = '86bd4udvjkab6n';
             const REDIRECT_URI = 'https://cholebhature.netlify.app/docs/user/callback.html';
             
-            // Required LinkedIn API scopes - updated to include r_liteprofile and r_emailaddress
+            // Required LinkedIn API scopes - using only what's available and needed
             const LINKEDIN_SCOPES = [
-                'r_liteprofile',
-                'r_emailaddress',
+                'r_basicprofile',
                 'openid',
                 'profile',
                 'email'
