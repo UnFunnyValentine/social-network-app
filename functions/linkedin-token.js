@@ -11,6 +11,7 @@ exports.handler = async function(event, context) {
     const { code } = data;
     
     console.log('Received code:', code);
+    console.log('Using client ID:', process.env.LINKEDIN_CLIENT_ID);
     console.log('Using redirect URI:', process.env.REDIRECT_URI);
     
     // Exchange the code for a token
