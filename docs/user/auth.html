@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinkedIn Authentication</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Montserrat', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 500px;
+            padding: 30px;
+            text-align: center;
+        }
+        .header {
+            color: #0077b5;
+            margin-bottom: 20px;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .conference-details {
+            margin-bottom: 25px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+        .btn-linkedin {
+            background-color: #0077b5;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 12px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.3s;
+        }
+        .btn-linkedin:hover {
+            background-color: #006097;
+        }
+        .linkedin-icon {
+            margin-right: 10px;
+            width: 20px;
+            height: 20px;
+        }
+        .status-message {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .error {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        .success {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">LinkedIn Authentication</div>
+        <div class="conference-details" id="conferenceDetails">
+            <p><strong>Loading conference details...</strong></p>
+        </div>
+        <button id="linkedinAuth" class="btn-linkedin">
+            <svg class="linkedin-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white">
+                <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/>
+            </svg>
+            Connect with LinkedIn
+        </button>
+        <div id="statusMessage" class="status-message"></div>
+    </div>
+
+    <script>
+        function loginWithLinkedIn() {
+            // LinkedIn OAuth Configuration
+            const LINKEDIN_CLIENT_ID = '86bd4udvjkab6n'; // This will be replaced by environment variables in production
+            const REDIRECT_URI = 'https://inquisitive-semolina-6c5625.netlify.app/docs/user/callback.html';
+            
+            // Required LinkedIn API scopes - using the same scopes as localhost version
+            const LINKEDIN_SCOPES = [
+                'openid',
+                'profile',
+                'email'
+            ].join(' ');
+            
+            // Get conference details from URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const conferenceId = urlParams.get('id') || 'conf_default';
+            const conferenceName = urlParams.get('name') || 'Sample Conference';
+            const conferenceLocation = urlParams.get('location') || 'Virtual Event';
+            
+            // Store conference details in sessionStorage
+            sessionStorage.setItem('conferenceId', conferenceId);
+            sessionStorage.setItem('conferenceName', conferenceName);
+            sessionStorage.setItem('conferenceLocation', conferenceLocation);
+            
+            // Create state parameter with conference details
+            const stateData = {
+                conferenceId,
+                conferenceName,
+                conferenceLocation
+            };
+            
+            // Construct LinkedIn OAuth URL
+            const linkedInAuthUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
+                `response_type=code&` +
+                `client_id=${LINKEDIN_CLIENT_ID}&` +
+                `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+                `scope=${encodeURIComponent(LINKEDIN_SCOPES)}&` +
+                `state=${encodeURIComponent(JSON.stringify(stateData))}`;
+            
+            // Redirect to LinkedIn login
+            window.location.href = linkedInAuthUrl;
+        }
+        
+        // LinkedIn Auth Button Event Listener
+        document.getElementById('linkedinAuth').addEventListener('click', loginWithLinkedIn);
+        
+        // Check for error parameters in URL
+        if (urlParams.get('error')) {
+            const errorMsg = urlParams.get('error_description') || urlParams.get('error');
+            const statusMessage = document.getElementById('statusMessage');
+            
+            // Update the status message with error information
+            if (errorMsg.includes('scope') || errorMsg.includes('authorized')) {
+                statusMessage.innerHTML = `
+                    <div class="error" style="margin-top: 15px; padding: 10px; border-radius: 4px;">
+                        <p><strong>Authentication error:</strong> ${errorMsg}</p>
+                        <p>This error occurs when the required scope (r_liteprofile) is not enabled for your LinkedIn application.</p>
+                        <p>To fix this:</p>
+                        <ol style="text-align: left;">
+                            <li>Go to <a href="https://www.linkedin.com/developers/apps/${LINKEDIN_CLIENT_ID}/auth" target="_blank">LinkedIn Auth Settings</a></li>
+                            <li>Under "OAuth 2.0 scopes", enable <strong>r_liteprofile</strong></li>
+                            <li>Go to <a href="https://www.linkedin.com/developers/apps/${LINKEDIN_CLIENT_ID}/products" target="_blank">Products tab</a></li>
+                            <li>Make sure "Sign In with LinkedIn" is added and enabled</li>
+                            <li>If not enabled, click "Request Access" and wait for activation</li>
+                            <li>Save all changes</li>
+                            <li>Return to this page and try again</li>
+                        </ol>
+                        <p><strong>Note:</strong> Changes in LinkedIn Developer Console may take a few minutes to take effect.</p>
+                    </div>
+                `;
+            } else if (errorMsg.includes('redirect_uri') || errorMsg.includes('does not match')) {
+                statusMessage.innerHTML += `
+                    <div class="error" style="margin-top: 15px; padding: 10px; border-radius: 4px;">
+                        <p><strong>Authentication error:</strong> ${errorMsg}</p>
+                        <p>This is due to a redirect URI mismatch.</p>
+                        <p>The redirect URI in your code is: <code>${REDIRECT_URI}</code></p>
+                        <p>Please make sure this <strong>exact</strong> URL is registered in your LinkedIn application settings.</p>
+                        <p>Common issues:</p>
+                        <ul style="text-align: left;">
+                            <li>Different port number (3000 vs 8080)</li>
+                            <li>Extra or missing slashes</li>
+                            <li>HTTP vs HTTPS</li>
+                            <li>Different domain (localhost vs 127.0.0.1)</li>
+                        </ul>
+                    </div>
+                `;
+            } else {
+                statusMessage.innerHTML += `
+                    <div class="error" style="margin-top: 15px; padding: 10px; border-radius: 4px;">
+                        <p><strong>Authentication error:</strong> ${errorMsg}</p>
+                        <p>Please check your LinkedIn application settings and try again.</p>
+                    </div>
+                `;
+            }
+            
+            statusMessage.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

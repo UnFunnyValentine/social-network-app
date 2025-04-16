@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Processing LinkedIn Authentication</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Montserrat', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 500px;
+            padding: 30px;
+            text-align: center;
+        }
+        .header {
+            color: #0077b5;
+            margin-bottom: 20px;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 30px 0;
+        }
+        .spinner {
+            display: inline-block;
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(0, 119, 181, 0.2);
+            border-radius: 50%;
+            border-top-color: #0077b5;
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .status-message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .error {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">Processing LinkedIn Authentication</div>
+        
+        <div class="loading-container">
+            <div class="spinner"></div>
+            <p>Connecting with LinkedIn...</p>
+        </div>
+        
+        <div id="statusMessage" class="status-message" style="display: none;"></div>
+    </div>
+
+    <script>
+        // LinkedIn OAuth Configuration
+        const LINKEDIN_CLIENT_ID = '86bd4udvjkab6n';
+        const LINKEDIN_CLIENT_SECRET = 'WPL_AP1.OgDnI5N7j6k3LOI2.3u7pLw==';
+
+        // IMPORTANT: This must EXACTLY match what's in auth.html and what's registered in LinkedIn Developer Console
+        const REDIRECT_URI = 'https://inquisitive-semolina-6c5625.netlify.app/docs/user/callback.html';
+
+        console.log('Callback using redirect URI:', REDIRECT_URI);
+        
+        // Parse query parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        const state = urlParams.get('state');
+        const error = urlParams.get('error');
+        const errorDescription = urlParams.get('error_description');
+        
+        // Parse conference details from state
+        let conferenceDetails = {};
+        try {
+            if (state) {
+                conferenceDetails = JSON.parse(decodeURIComponent(state));
+                console.log('Parsed conference details from state:', conferenceDetails);
+            }
+        } catch (error) {
+            console.error('Error parsing state parameter:', error);
+        }
+        
+        // Show error if one exists
+        if (error) {
+            document.querySelector('.loading-container').style.display = 'none';
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.textContent = `Authentication error: ${errorDescription || error}`;
+            statusMessage.classList.add('error');
+            statusMessage.style.display = 'block';
+            
+            // Redirect back to auth page after 3 seconds
+            setTimeout(() => {
+                window.location.href = `auth.html?error=${error}&error_description=${encodeURIComponent(errorDescription || '')}`;
+            }, 3000);
+        } else if (code) {
+            // Exchange authorization code for access token using our backend
+            document.getElementById('statusMessage').textContent = 'Exchanging authorization code for access token...';
+            document.getElementById('statusMessage').style.display = 'block';
+            
+            // Get conference details from state or fallback to storage
+            const conferenceId = conferenceDetails.conferenceId || sessionStorage.getItem('conferenceId') || 'conf_default';
+            const conferenceName = conferenceDetails.conferenceName || sessionStorage.getItem('conferenceName') || 'Sample Conference';
+            const conferenceLocation = conferenceDetails.conferenceLocation || sessionStorage.getItem('conferenceLocation') || 'Virtual Event';
+            
+            // Log what we have
+            console.log('Conference data in callback:', { conferenceId, conferenceName, conferenceLocation });
+            
+            // Exchange code for token using our Netlify function
+            fetch('/api/linkedin-token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ code })
+            })
+            .then(async response => {
+                // Handle the response from the server
+                const data = await response.json();
+                
+                // Check if the response is an error
+                if (data.status === 'error') {
+                    throw new Error(data.message || 'Authentication failed');
+                }
+
+                // Store the user profile data
+                localStorage.setItem('linkedInUser', JSON.stringify(data));
+                localStorage.setItem('isAuthenticated', 'true');
+                localStorage.setItem('authTime', new Date().toISOString());
+
+                // Store conference details
+                localStorage.setItem('conferenceId', conferenceId);
+                localStorage.setItem('conferenceName', conferenceName);
+                localStorage.setItem('conferenceLocation', conferenceLocation);
+
+                // Redirect to the connections page
+                window.location.href = './connections.html';
+            })
+            .catch(error => {
+                console.error('Error during authentication:', error);
+                document.getElementById('statusMessage').textContent = 'Authentication failed. Please try again.';
+                document.getElementById('statusMessage').classList.add('error');
+                
+                // Update the redirect to be relative
+                setTimeout(() => {
+                    window.location.href = './auth.html';
+                }, 3000);
+            });
+        } else {
+            // Update this redirect to be relative
+            window.location.href = './auth.html';
+        }
+    </script>
+</body>
+</html>

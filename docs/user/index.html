@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conference Networking</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/user.css">
+    
+    <!-- QR Code Libraries -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    
+    <!-- PDF.js for PDF QR code reading -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    </script>
+    
+    <style>
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #reader {
+            width: 100%;
+            max-width: 600px;
+            margin: 20px auto;
+        }
+        #scanner-container {
+            position: relative;
+            margin: 20px auto;
+            max-width: 600px;
+        }
+        .file-input {
+            display: none;
+        }
+        .upload-section {
+            margin-top: 2rem;
+            text-align: center;
+        }
+        .btn {
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: none;
+            font-size: 16px;
+            margin: 5px;
+        }
+        .btn-primary {
+            background: #0077B5;
+            color: white;
+        }
+        .btn-secondary {
+            background: #666;
+            color: white;
+        }
+        .btn:hover {
+            opacity: 0.9;
+        }
+        .info-text {
+            text-align: center;
+            margin: 20px 0;
+            font-size: 18px;
+        }
+        #qr-reader-results {
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Conference Networking</h1>
+        </div>
+        
+        <div class="info-text">
+            Scan the conference QR code to connect with other attendees
+                </div>
+        
+        <div id="reader"></div>
+        
+            <div class="upload-section">
+                <p>Or upload QR code from file:</p>
+                <input type="file" id="qr-upload" accept="image/*,.pdf" onchange="handleFileUpload(event)" class="file-input">
+                <label for="qr-upload" class="btn btn-secondary">Upload QR Code (Image/PDF)</label>
+        </div>
+
+        <div id="qr-reader-results"></div>
+    </div>
+
+    <script>
+        // Clear localStorage to ensure we're starting fresh
+        console.log('Clearing localStorage to start fresh authentication flow');
+        localStorage.removeItem('isAuthenticated');
+        localStorage.removeItem('linkedInUser');
+        localStorage.removeItem('conferenceId');
+        localStorage.removeItem('conferenceName');
+        localStorage.removeItem('conferenceLocation');
+        sessionStorage.clear();
+    </script>
+
+    <script src="../assets/js/user.js"></script>
+</body>
+</html>

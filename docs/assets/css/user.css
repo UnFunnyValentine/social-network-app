@@ -1,0 +1,205 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: linear-gradient(135deg, #f2f2f2, #e2e2e2);
+    font-family: 'Montserrat', sans-serif;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    background: #fff;
+    border-radius: 20px;
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 30px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.header {
+    background: linear-gradient(135deg, #0073b1, #005682);
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 25px;
+    text-align: center;
+}
+
+.header h1 {
+    color: #fff;
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.screen {
+    display: none;
+}
+
+.screen.active {
+    display: block;
+}
+
+.info-box {
+    background: #e8f0fe;
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.qr-scan-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 50%;
+    transition: background 0.3s ease;
+}
+
+.qr-scan-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+#scanner-container {
+    width: 100%;
+    max-width: 400px;
+    margin: 20px auto;
+}
+
+#qr-scanner {
+    width: 100%;
+    border-radius: 10px;
+    margin-bottom: 10px;
+}
+
+.btn {
+    padding: 12px 25px;
+    font-size: 16px;
+    font-weight: 600;
+    border: none;
+    border-radius: 30px;
+    cursor: pointer;
+    margin: 10px 5px;
+    transition: all 0.3s ease;
+    width: calc(100% - 10px);
+}
+
+.btn-primary {
+    background: #0073b1;
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background: #005682;
+}
+
+.btn-secondary {
+    background: #e0e0e0;
+    color: #333;
+}
+
+.btn-secondary:hover {
+    background: #c0c0c0;
+}
+
+.preference-box {
+    background: #f5f5f5;
+    border-radius: 15px;
+    padding: 20px;
+    margin: 20px 0;
+}
+
+.connection-item {
+    display: flex;
+    align-items: center;
+    background: #fff;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.profile-pic {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    margin-right: 15px;
+}
+
+.profile-info {
+    flex: 1;
+}
+
+.profile-name {
+    font-weight: 600;
+    color: #333;
+}
+
+.profile-title {
+    font-size: 14px;
+    color: #666;
+    margin-top: 5px;
+}
+
+.qr-icon {
+    width: 40px;
+    height: 40px;
+    margin-bottom: 10px;
+}
+
+.upload-section {
+    margin-top: 20px;
+    padding: 15px;
+    border-top: 1px solid #eee;
+}
+
+.file-input {
+    display: none;
+}
+
+.file-input + label {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: #2867B2;
+    color: white;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.file-input + label:hover {
+    background-color: #1e4b8d;
+}
+
+.info-box {
+    text-align: center;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 10px;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.info-text {
+    margin-bottom: 20px;
+    color: #444;
+}
+
+.qr-scan-btn {
+    background: none;
+    border: 2px solid #2867B2;
+    border-radius: 50%;
+    padding: 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.qr-scan-btn:hover {
+    background: #f0f2f5;
+}
