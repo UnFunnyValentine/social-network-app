@@ -82,6 +82,15 @@
             animation: spin 1s ease-in-out infinite;
             margin-right: 10px;
         }
+        .bypass-link {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #999;
+            text-decoration: none;
+        }
+        .bypass-link:hover {
+            text-decoration: underline;
+        }
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
@@ -100,38 +109,96 @@
             Connect with LinkedIn
         </button>
         <div id="statusMessage" class="status-message"></div>
+        <a href="#" id="bypass-link" class="bypass-link">Use Demo Data</a>
     </div>
 
     <script>
+        // Parse URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        // Conference information (default values if not provided in URL)
+        const conferenceId = urlParams.get('id') || 'conf_default';
+        const conferenceName = urlParams.get('name') || 'Sample Conference';
+        const conferenceLocation = urlParams.get('location') || 'Virtual Event';
+        
+        // Update conference details in the UI
+        document.getElementById('conferenceDetails').innerHTML = `
+            <p><strong>${conferenceName}</strong></p>
+            <p>${conferenceLocation}</p>
+            <p>Please connect with LinkedIn to see your connections at this conference</p>
+        `;
+        
+        // Store conference details in sessionStorage
+        sessionStorage.setItem('conferenceId', conferenceId);
+        sessionStorage.setItem('conferenceName', conferenceName);
+        sessionStorage.setItem('conferenceLocation', conferenceLocation);
+        
+        // Check if there's an error in URL parameters
+        if (urlParams.get('error')) {
+            const errorMsg = urlParams.get('error_description') || urlParams.get('error');
+            const statusMessage = document.getElementById('statusMessage');
+            
+            // Update the status message with error information
+            if (errorMsg.includes('scope') || errorMsg.includes('authorized')) {
+                statusMessage.innerHTML = `
+                    <div class="error">
+                        <p><strong>Authentication error:</strong> ${errorMsg}</p>
+                        <p>LinkedIn scope error. You can try again or use demo data.</p>
+                    </div>
+                `;
+            } else if (errorMsg.includes('redirect_uri') || errorMsg.includes('does not match')) {
+                statusMessage.innerHTML += `
+                    <div class="error">
+                        <p><strong>Authentication error:</strong> ${errorMsg}</p>
+                        <p>This is due to a redirect URI mismatch. You can try again or use demo data.</p>
+                    </div>
+                `;
+            } else {
+                statusMessage.innerHTML += `
+                    <div class="error">
+                        <p><strong>Authentication error:</strong> ${errorMsg}</p>
+                        <p>Please try again or use demo data below.</p>
+                    </div>
+                `;
+            }
+            
+            statusMessage.style.display = 'block';
+        }
+        
+        // LinkedIn OAuth Configuration
         function loginWithLinkedIn() {
             // LinkedIn OAuth Configuration
             const LINKEDIN_CLIENT_ID = '86bd4udvjkab6n';
-            const REDIRECT_URI = 'https://cholebhature.netlify.app/docs/user/callback.html';
             
-            // Required LinkedIn API scopes - using the same scopes that worked in the old version
+            // Set the redirect URI to an absolute URL based on current origin
+            let REDIRECT_URI = 'https://cholebhature.netlify.app/docs/user/callback.html';
+            
+            // For local development, allow overriding with localhost
+            if (window.location.hostname === 'localhost') {
+                REDIRECT_URI = `${window.location.origin}/docs/user/callback.html`;
+            }
+            
+            // Required LinkedIn API scopes - using OpenID Connect
             const LINKEDIN_SCOPES = [
                 'openid',
                 'profile',
                 'email'
             ].join(' ');
             
-            // Get conference details from URL parameters
-            const urlParams = new URLSearchParams(window.location.search);
-            const conferenceId = urlParams.get('id') || 'conf_default';
-            const conferenceName = urlParams.get('name') || 'Sample Conference';
-            const conferenceLocation = urlParams.get('location') || 'Virtual Event';
-            
-            // Store conference details in sessionStorage
-            sessionStorage.setItem('conferenceId', conferenceId);
-            sessionStorage.setItem('conferenceName', conferenceName);
-            sessionStorage.setItem('conferenceLocation', conferenceLocation);
-            
             // Create state parameter with conference details
             const stateData = {
                 conferenceId,
                 conferenceName,
-                conferenceLocation
+                conferenceLocation,
+                timestamp: Date.now()
             };
+            
+            // Show loading in button
+            const authButton = document.getElementById('linkedinAuth');
+            authButton.innerHTML = `
+                <span class="loading"></span>
+                Connecting to LinkedIn...
+            `;
             
             // Construct LinkedIn OAuth URL
             const linkedInAuthUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
@@ -142,63 +209,52 @@
                 `state=${encodeURIComponent(JSON.stringify(stateData))}`;
             
             // Redirect to LinkedIn login
-            window.location.href = linkedInAuthUrl;
+            setTimeout(() => {
+                window.location.href = linkedInAuthUrl;
+            }, 500);
         }
         
         // LinkedIn Auth Button Event Listener
         document.getElementById('linkedinAuth').addEventListener('click', loginWithLinkedIn);
         
-        // Check for error parameters in URL
-        if (urlParams.get('error')) {
-            const errorMsg = urlParams.get('error_description') || urlParams.get('error');
+        // Use Demo Data Link
+        document.getElementById('bypass-link').addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Create demo user data
+            const demoUser = {
+                id: `demo_${Date.now()}`,
+                firstName: 'Demo',
+                lastName: 'User',
+                name: 'Demo User',
+                email: 'demo@example.com',
+                profilePicture: 'https://randomuser.me/api/portraits/lego/1.jpg'
+            };
+            
+            // Store demo data
+            localStorage.setItem('linkedInUser', JSON.stringify(demoUser));
+            localStorage.setItem('isAuthenticated', 'true');
+            localStorage.setItem('authTime', new Date().toISOString());
+            
+            // Store conference details
+            localStorage.setItem('conferenceId', conferenceId);
+            localStorage.setItem('conferenceName', conferenceName);
+            localStorage.setItem('conferenceLocation', conferenceLocation);
+            
+            // Show success message
             const statusMessage = document.getElementById('statusMessage');
-            
-            // Update the status message with error information
-            if (errorMsg.includes('scope') || errorMsg.includes('authorized')) {
-                statusMessage.innerHTML = `
-                    <div class="error" style="margin-top: 15px; padding: 10px; border-radius: 4px;">
-                        <p><strong>Authentication error:</strong> ${errorMsg}</p>
-                        <p>This error occurs when the required scope (r_liteprofile) is not enabled for your LinkedIn application.</p>
-                        <p>To fix this:</p>
-                        <ol style="text-align: left;">
-                            <li>Go to <a href="https://www.linkedin.com/developers/apps/${LINKEDIN_CLIENT_ID}/auth" target="_blank">LinkedIn Auth Settings</a></li>
-                            <li>Under "OAuth 2.0 scopes", enable <strong>r_liteprofile</strong></li>
-                            <li>Go to <a href="https://www.linkedin.com/developers/apps/${LINKEDIN_CLIENT_ID}/products" target="_blank">Products tab</a></li>
-                            <li>Make sure "Sign In with LinkedIn" is added and enabled</li>
-                            <li>If not enabled, click "Request Access" and wait for activation</li>
-                            <li>Save all changes</li>
-                            <li>Return to this page and try again</li>
-                        </ol>
-                        <p><strong>Note:</strong> Changes in LinkedIn Developer Console may take a few minutes to take effect.</p>
-                    </div>
-                `;
-            } else if (errorMsg.includes('redirect_uri') || errorMsg.includes('does not match')) {
-                statusMessage.innerHTML += `
-                    <div class="error" style="margin-top: 15px; padding: 10px; border-radius: 4px;">
-                        <p><strong>Authentication error:</strong> ${errorMsg}</p>
-                        <p>This is due to a redirect URI mismatch.</p>
-                        <p>The redirect URI in your code is: <code>${REDIRECT_URI}</code></p>
-                        <p>Please make sure this <strong>exact</strong> URL is registered in your LinkedIn application settings.</p>
-                        <p>Common issues:</p>
-                        <ul style="text-align: left;">
-                            <li>Extra or missing slashes</li>
-                            <li>HTTP vs HTTPS</li>
-                            <li>Different domain (cholebhature.netlify.app vs www.cholebhature.netlify.app)</li>
-                            <li>Missing or incorrect path (/docs/user/callback.html)</li>
-                        </ul>
-                    </div>
-                `;
-            } else {
-                statusMessage.innerHTML += `
-                    <div class="error" style="margin-top: 15px; padding: 10px; border-radius: 4px;">
-                        <p><strong>Authentication error:</strong> ${errorMsg}</p>
-                        <p>Please check your LinkedIn application settings and try again.</p>
-                    </div>
-                `;
-            }
-            
+            statusMessage.innerHTML = `
+                <div class="success">
+                    <p>Using demo data. Redirecting to conference connections...</p>
+                </div>
+            `;
             statusMessage.style.display = 'block';
-        }
+            
+            // Redirect to connections page after a delay
+            setTimeout(() => {
+                window.location.href = './connections.html';
+            }, 1500);
+        });
     </script>
 </body>
 </html>
