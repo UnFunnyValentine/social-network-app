@@ -93,6 +93,10 @@ exports.handler = async function(event, context) {
     // This simplified approach ensures we're directly accessing the raw data
     let attendees = [];
     
+    // Ensure data is loaded from storage
+    const exists = store.conferenceExists(conferenceId);
+    console.log(`Conference ${conferenceId} exists in store: ${exists}`);
+    
     if (store.conferenceAttendees[conferenceId]) {
       // Get all attendees as an array
       const allAttendees = Object.values(store.conferenceAttendees[conferenceId]);
@@ -118,6 +122,9 @@ exports.handler = async function(event, context) {
     } else {
       console.log(`No conference found with ID: ${conferenceId}`);
     }
+    
+    // Debug log all stored conferences
+    console.log('All conferences in store:', Object.keys(store.conferenceAttendees));
 
     // Return the filtered attendees
     return {
