@@ -178,12 +178,17 @@
                 REDIRECT_URI = `${window.location.origin}/docs/user/callback.html`;
             }
             
-            // Required LinkedIn API scopes - using OpenID Connect
+            // Required LinkedIn API scopes - must match what's configured in LinkedIn Developer Portal
             const LINKEDIN_SCOPES = [
                 'openid',
                 'profile',
+                'r_basicprofile',
                 'email'
             ].join(' ');
+            
+            // Show debug info in the console
+            console.log('Using LinkedIn scopes:', LINKEDIN_SCOPES);
+            console.log('Redirect URI:', REDIRECT_URI);
             
             // Create state parameter with conference details
             const stateData = {
