@@ -441,10 +441,8 @@
                 console.log('Registering for conference...');
                 await registerForConference();
                 
-                // Set the correct API URL based on production or development
-                const baseApiUrl = 'https://cholebhature.netlify.app/api';
-                const attendeesEndpoint = `/conference/${conferenceId}/attendees`;
-                const attendeesUrl = `${baseApiUrl}${attendeesEndpoint}?currentUserId=${currentUserId}`;
+                // Set the correct API URL for Netlify functions
+                const attendeesUrl = `/.netlify/functions/conference-attendees?conferenceId=${encodeURIComponent(conferenceId)}&currentUserId=${encodeURIComponent(currentUserId)}`;
                 
                 console.log('Fetching conference attendees from:', attendeesUrl);
                 
@@ -452,15 +450,30 @@
                 document.getElementById('loadingOverlay').style.display = 'flex';
                 
                 // Make the API call with proper error handling
-                const attendeesResponse = await fetch(attendeesUrl, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    },
-                    // Include credentials if needed for authentication
-                    credentials: 'include'
-                });
+                let attendeesResponse;
+                try {
+                    attendeesResponse = await fetch(attendeesUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                } catch (fetchError) {
+                    console.error('Error fetching from primary URL:', fetchError);
+                    
+                    // Try alternative URL format
+                    const fallbackUrl = `/api/conference/${conferenceId}/attendees?currentUserId=${encodeURIComponent(currentUserId)}`;
+                    console.log('Trying fallback URL:', fallbackUrl);
+                    
+                    attendeesResponse = await fetch(fallbackUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                }
                 
                 if (!attendeesResponse.ok) {
                     throw new Error(`Failed to fetch conference attendees: ${attendeesResponse.status} ${attendeesResponse.statusText}`);
@@ -1022,8 +1035,8 @@
             });
 
             try {
-                // Use direct API URL for registration
-                const registerUrl = 'https://cholebhature.netlify.app/api/conference/register';
+                // Use properly formatted API URL with Netlify redirects
+                const registerUrl = '/.netlify/functions/conference-register';
                 
                 // Build proper user data to register
                 const name = userData.name || `${userData.firstName || ''} ${userData.lastName || ''}`.trim();
@@ -1043,6 +1056,8 @@
                     }
                 };
 
+                console.log('Sending registration data:', JSON.stringify(profileData));
+
                 const response = await fetch(registerUrl, {
                     method: 'POST',
                     headers: {
@@ -1055,7 +1070,33 @@
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('Registration error response:', errorText);
-                    throw new Error(`Failed to register for conference: ${response.status} ${response.statusText}`);
+                    
+                    // Try using the alternative API URL format as fallback
+                    console.log('Trying alternative API URL format...');
+                    const fallbackUrl = '/api/conference/register';
+                    
+                    const fallbackResponse = await fetch(fallbackUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify(profileData)
+                    });
+                    
+                    if (!fallbackResponse.ok) {
+                        const fallbackErrorText = await fallbackResponse.text();
+                        console.error('Fallback registration error response:', fallbackErrorText);
+                        throw new Error(`Failed to register for conference: ${fallbackResponse.status} ${fallbackResponse.statusText}`);
+                    }
+                    
+                    console.log('Successfully registered for conference using fallback URL');
+                    
+                    try {
+                        return await fallbackResponse.json();
+                    } catch (e) {
+                        return { success: true };
+                    }
                 }
 
                 console.log('Successfully registered for conference');
@@ -1090,30 +1131,55 @@
                 await registerForConference();
                 
                 // Then update visibility status
-                const visibilityUrl = `${apiConfig.baseUrl}/conference/visibility`;
+                const visibilityUrl = '/.netlify/functions/conference-visibility';
                 console.log('Updating visibility at URL:', visibilityUrl);
+                
+                const visibilityData = {
+                    userId,
+                    conferenceId,
+                    isVisible,
+                    userData: {
+                        id: userId,
+                        name: userData.name || `${userData.firstName || ''} ${userData.lastName || ''}`.trim(),
+                        email: userData.email,
+                        profilePicture: userData.profilePicture,
+                        headline: userData.headline || ''
+                    }
+                };
                 
                 const response = await fetch(visibilityUrl, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        userId,
-                        conferenceId,
-                        isVisible,
-                        userData: {
-                            name: userData.name || `${userData.firstName || ''} ${userData.lastName || ''}`.trim(),
-                            email: userData.email,
-                            profilePicture: userData.profilePicture,
-                            headline: userData.headline || ''
-                        }
-                    })
+                    body: JSON.stringify(visibilityData)
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || 'Failed to update visibility');
+                    const errorText = await response.text();
+                    console.error('Visibility update error:', errorText);
+                    
+                    // Try using the alternative API URL format as fallback
+                    console.log('Trying alternative visibility URL format...');
+                    const fallbackUrl = '/api/conference/visibility';
+                    
+                    const fallbackResponse = await fetch(fallbackUrl, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(visibilityData)
+                    });
+                    
+                    if (!fallbackResponse.ok) {
+                        const fallbackErrorText = await fallbackResponse.text();
+                        console.error('Fallback visibility error:', fallbackErrorText);
+                        throw new Error('Failed to update visibility');
+                    }
+                    
+                    console.log('Successfully updated visibility using fallback URL');
+                } else {
+                    console.log('Successfully updated visibility');
                 }
 
                 status.textContent = isVisible ? 'Visible to Other Attendees' : 'Hidden from Other Attendees';
