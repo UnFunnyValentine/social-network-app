@@ -82,15 +82,6 @@
             animation: spin 1s ease-in-out infinite;
             margin-right: 10px;
         }
-        .bypass-link {
-            margin-top: 20px;
-            font-size: 12px;
-            color: #999;
-            text-decoration: none;
-        }
-        .bypass-link:hover {
-            text-decoration: underline;
-        }
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
@@ -109,7 +100,6 @@
             Connect with LinkedIn
         </button>
         <div id="statusMessage" class="status-message"></div>
-        <a href="#" id="bypass-link" class="bypass-link">Use Demo Data</a>
     </div>
 
     <script>
@@ -143,21 +133,21 @@
                 statusMessage.innerHTML = `
                     <div class="error">
                         <p><strong>Authentication error:</strong> ${errorMsg}</p>
-                        <p>LinkedIn scope error. You can try again or use demo data.</p>
+                        <p>LinkedIn scope error. Please try again.</p>
                     </div>
                 `;
             } else if (errorMsg.includes('redirect_uri') || errorMsg.includes('does not match')) {
                 statusMessage.innerHTML += `
                     <div class="error">
                         <p><strong>Authentication error:</strong> ${errorMsg}</p>
-                        <p>This is due to a redirect URI mismatch. You can try again or use demo data.</p>
+                        <p>This is due to a redirect URI mismatch. Please try again.</p>
                     </div>
                 `;
             } else {
                 statusMessage.innerHTML += `
                     <div class="error">
                         <p><strong>Authentication error:</strong> ${errorMsg}</p>
-                        <p>Please try again or use demo data below.</p>
+                        <p>Please try again.</p>
                     </div>
                 `;
             }
@@ -221,45 +211,6 @@
         
         // LinkedIn Auth Button Event Listener
         document.getElementById('linkedinAuth').addEventListener('click', loginWithLinkedIn);
-        
-        // Use Demo Data Link
-        document.getElementById('bypass-link').addEventListener('click', function(e) {
-            e.preventDefault();
-            
-            // Create demo user data
-            const demoUser = {
-                id: `demo_${Date.now()}`,
-                firstName: 'Demo',
-                lastName: 'User',
-                name: 'Demo User',
-                email: 'demo@example.com',
-                profilePicture: 'https://randomuser.me/api/portraits/lego/1.jpg'
-            };
-            
-            // Store demo data
-            localStorage.setItem('linkedInUser', JSON.stringify(demoUser));
-            localStorage.setItem('isAuthenticated', 'true');
-            localStorage.setItem('authTime', new Date().toISOString());
-            
-            // Store conference details
-            localStorage.setItem('conferenceId', conferenceId);
-            localStorage.setItem('conferenceName', conferenceName);
-            localStorage.setItem('conferenceLocation', conferenceLocation);
-            
-            // Show success message
-            const statusMessage = document.getElementById('statusMessage');
-            statusMessage.innerHTML = `
-                <div class="success">
-                    <p>Using demo data. Redirecting to conference connections...</p>
-                </div>
-            `;
-            statusMessage.style.display = 'block';
-            
-            // Redirect to connections page after a delay
-            setTimeout(() => {
-                window.location.href = './connections.html';
-            }, 1500);
-        });
     </script>
 </body>
 </html>
