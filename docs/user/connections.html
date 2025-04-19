@@ -587,6 +587,9 @@
         // Initialize the page
         async function initializePage() {
             try {
+                // Display user profile first
+                displayUserProfile();
+                
                 // Hide loading overlay immediately
                 document.getElementById('loadingOverlay').style.display = 'none';
                 
@@ -968,33 +971,3 @@
     </script>
 </body>
 </html>
-
-// In your connections.html file, update the user profile display:
-
-function displayUserProfile() {
-    const userData = JSON.parse(localStorage.getItem('linkedInUser') || '{}');
-    const userProfileElement = document.getElementById('userProfile');
-    
-    if (!userData || !userData.id) {
-        userProfileElement.innerHTML = `
-            <div class="profile-error">
-                <p>User profile data is incomplete. Please try logging in again.</p>
-                <button onclick="window.location.href='./auth.html'">Log in again</button>
-            </div>
-        `;
-        return;
-    }
-    
-    // Extract first and last name from the profile data
-    const firstName = userData.localizedFirstName || userData.firstName || 'Unknown';
-    const lastName = userData.localizedLastName || userData.lastName || '';
-    const email = userData.email || 'Email not available';
-    
-    userProfileElement.innerHTML = `
-        <div class="profile-info">
-            <div class="profile-name">${firstName} ${lastName}</div>
-            <div class="profile-email">${email}</div>
-            <div class="profile-id">ID: ${userData.id}</div>
-        </div>
-    `;
-}
