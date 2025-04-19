@@ -108,9 +108,8 @@
             const LINKEDIN_CLIENT_ID = '86bd4udvjkab6n';
             const REDIRECT_URI = 'https://cholebhature.netlify.app/docs/user/callback.html';
             
-            // Required LinkedIn API scopes - using only what's available and needed
+            // Required LinkedIn API scopes - reverting to the working scopes
             const LINKEDIN_SCOPES = [
-                'r_basicprofile',
                 'openid',
                 'profile',
                 'email'
@@ -182,10 +181,10 @@
                         <p>Please make sure this <strong>exact</strong> URL is registered in your LinkedIn application settings.</p>
                         <p>Common issues:</p>
                         <ul style="text-align: left;">
-                            <li>Different port number (3000 vs 8080)</li>
                             <li>Extra or missing slashes</li>
                             <li>HTTP vs HTTPS</li>
-                            <li>Different domain (localhost vs 127.0.0.1)</li>
+                            <li>Different domain (cholebhature.netlify.app vs www.cholebhature.netlify.app)</li>
+                            <li>Missing or incorrect path (/docs/user/callback.html)</li>
                         </ul>
                     </div>
                 `;
