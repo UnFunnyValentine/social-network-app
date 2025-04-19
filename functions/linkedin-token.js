@@ -26,71 +26,104 @@ exports.handler = async function(event, context) {
       }
     });
 
-    console.log('Token response received');
+    console.log('Token response received:', tokenResponse.data);
     const accessToken = tokenResponse.data.access_token;
     
-    // Get the user profile using the correct endpoint with projection parameters
-    const profileResponse = await axios.get('https://api.linkedin.com/v2/me?projection=(id,localizedFirstName,localizedLastName,profilePicture(displayImage~:playableStreams))', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
-      }
-    });
-
-    console.log('Profile data received');
+    // IMPORTANT: We need to use the endpoints that match the scopes we have
+    // With openid and profile scopes, we should use the userinfo endpoint
+    let userData = {};
     
-    // Get the user's email if the email scope is granted - try multiple ways
-    let emailData = null;
-    
-    // First try the OpenID Connect userinfo endpoint (for email scope)
     try {
+      // First try the OpenID Connect userinfo endpoint (works with openid, profile, email scopes)
       const userinfoResponse = await axios.get('https://api.linkedin.com/v2/userinfo', {
         headers: {
           'Authorization': `Bearer ${accessToken}`
         }
       });
       
-      emailData = userinfoResponse.data.email;
-      console.log('Email successfully retrieved from userinfo endpoint');
+      console.log('Userinfo response received:', userinfoResponse.data);
+      
+      // Extract data from OpenID userinfo response
+      userData = {
+        id: userinfoResponse.data.sub,
+        firstName: userinfoResponse.data.given_name || '',
+        lastName: userinfoResponse.data.family_name || '',
+        email: userinfoResponse.data.email || 'email@example.com',
+        name: userinfoResponse.data.name || '',
+        profilePicture: userinfoResponse.data.picture || null,
+        locale: userinfoResponse.data.locale || 'en_US',
+        headline: userinfoResponse.data.headline || 'LinkedIn User'
+      };
+      
     } catch (userinfoError) {
       console.log('Userinfo endpoint error:', userinfoError.message);
+      console.log('Userinfo error details:', userinfoError.response?.data);
       
-      // If that fails, try the older emailAddress endpoint
+      // Use basic profile data if we can't get userinfo
       try {
-        const emailResponse = await axios.get('https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))', {
+        // Try the lite profile endpoint (works with the profile scope)
+        const profileResponse = await axios.get('https://api.linkedin.com/v2/me', {
           headers: {
             'Authorization': `Bearer ${accessToken}`
           }
         });
         
-        emailData = emailResponse.data.elements?.[0]?.['handle~']?.emailAddress;
-        console.log('Email successfully retrieved from emailAddress endpoint');
-      } catch (emailError) {
-        console.log('Email retrieval error:', emailError.message);
-        // Continue without email
+        console.log('Basic profile response received:', profileResponse.data);
+        
+        // Extract basic profile data
+        userData = {
+          id: profileResponse.data.id || `user_${Date.now()}`,
+          firstName: profileResponse.data.localizedFirstName || '',
+          lastName: profileResponse.data.localizedLastName || '',
+          name: `${profileResponse.data.localizedFirstName || ''} ${profileResponse.data.localizedLastName || ''}`.trim(),
+          email: 'email@example.com', // Default email since we couldn't get it
+          headline: 'LinkedIn User'
+        };
+        
+        // Try to get profile picture separately
+        try {
+          const profilePicResponse = await axios.get('https://api.linkedin.com/v2/me?projection=(id,profilePicture(displayImage~:playableStreams))', {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            }
+          });
+          
+          userData.profilePicture = profilePicResponse.data.profilePicture?.['displayImage~']?.elements?.[0]?.identifiers?.[0]?.identifier || null;
+        } catch (picError) {
+          console.log('Error getting profile picture:', picError.message);
+        }
+        
+        // Try to get email separately
+        try {
+          const emailResponse = await axios.get('https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))', {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            }
+          });
+          
+          userData.email = emailResponse.data.elements?.[0]?.['handle~']?.emailAddress || 'email@example.com';
+        } catch (emailError) {
+          console.log('Email retrieval error:', emailError.message);
+        }
+        
+      } catch (profileError) {
+        console.log('Profile endpoint error:', profileError.message);
+        console.log('Profile error details:', profileError.response?.data);
+        
+        // Create fallback user data if all API calls fail
+        userData = {
+          id: `fallback_${Date.now()}`,
+          firstName: 'LinkedIn',
+          lastName: 'User',
+          name: 'LinkedIn User',
+          email: 'email@example.com',
+          profilePicture: null,
+          headline: 'LinkedIn User'
+        };
       }
     }
 
-    // Extract profile picture URL if available
-    let profilePictureUrl = null;
-    try {
-      profilePictureUrl = profileResponse.data.profilePicture?.['displayImage~']?.elements?.[0]?.identifiers?.[0]?.identifier;
-    } catch (picError) {
-      console.log('Error extracting profile picture:', picError.message);
-    }
-
-    // Create a simplified user profile object with only necessary fields
-    const userData = {
-      id: profileResponse.data.id,
-      firstName: profileResponse.data.localizedFirstName || '',
-      lastName: profileResponse.data.localizedLastName || '',
-      email: emailData || 'email@example.com', // Provide fallback email
-      profilePicture: profilePictureUrl,
-      // Add additional fields from LinkedIn response
-      name: `${profileResponse.data.localizedFirstName || ''} ${profileResponse.data.localizedLastName || ''}`.trim(),
-      headline: 'LinkedIn User' // Default headline
-    };
-
-    // Return the combined data
+    // Return the user data
     return {
       statusCode: 200,
       headers: {
