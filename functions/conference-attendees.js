@@ -1,8 +1,38 @@
 // Conference attendees function
 const axios = require('axios');
 
-// In-memory storage for demonstration (in production, use a database)
-const attendeesStore = {};
+// Import the shared store for conference data
+const store = require('./shared-store');
+
+// Global in-memory storage for conference attendees (in production, use a database)
+// This will persist between function calls as long as the function instance stays warm
+const conferenceAttendees = {};
+
+// Function to register a user for a conference
+function registerUserForConference(conferenceId, userData) {
+  if (!conferenceId || !userData || !userData.id) {
+    console.error('Invalid data for registration');
+    return false;
+  }
+
+  // Initialize conference if it doesn't exist
+  if (!conferenceAttendees[conferenceId]) {
+    conferenceAttendees[conferenceId] = {};
+  }
+
+  // Store user data keyed by user ID
+  conferenceAttendees[conferenceId][userData.id] = {
+    id: userData.id,
+    profile: userData,
+    isVisible: userData.isVisible !== false, // Default to visible
+    joinedAt: new Date().toISOString()
+  };
+
+  console.log(`User ${userData.id} registered for conference ${conferenceId}`);
+  console.log(`Conference ${conferenceId} now has ${Object.keys(conferenceAttendees[conferenceId]).length} attendees`);
+  
+  return true;
+}
 
 exports.handler = async function(event, context) {
   // CORS headers for cross-origin requests
@@ -26,24 +56,20 @@ exports.handler = async function(event, context) {
     let conferenceId;
     let currentUserId;
     
-    // Handle both /conference/:id/attendees and /conference?id=:id formats
-    const pathParts = event.path.split('/');
-    if (pathParts.includes('conference') && pathParts.length > 2) {
+    // Parse query parameters
+    const params = event.queryStringParameters || {};
+    
+    // Handle different parameter formats
+    conferenceId = params.conferenceId || params.id;
+    currentUserId = params.currentUserId || params.userId;
+    
+    // If parameters are not in query, try to extract from path
+    if (!conferenceId) {
+      const pathParts = event.path.split('/');
       const conferenceIndex = pathParts.indexOf('conference');
       if (conferenceIndex >= 0 && conferenceIndex + 1 < pathParts.length) {
         conferenceId = pathParts[conferenceIndex + 1];
       }
-    }
-    
-    // If not in path, try to get from query params
-    if (!conferenceId) {
-      const params = new URLSearchParams(event.queryStringParameters || {});
-      conferenceId = params.get('conferenceId') || params.get('id');
-      currentUserId = params.get('currentUserId') || params.get('userId');
-    } else {
-      // If in path, get currentUserId from query params
-      const params = new URLSearchParams(event.queryStringParameters || {});
-      currentUserId = params.get('currentUserId') || params.get('userId');
     }
     
     // Handle if conferenceId is still not found
@@ -54,74 +80,45 @@ exports.handler = async function(event, context) {
         body: JSON.stringify({ 
           error: 'Conference ID is required',
           path: event.path,
-          queryParams: event.queryStringParameters
+          params
         })
       };
     }
 
     console.log('Getting attendees for conference:', { conferenceId, currentUserId });
     
-    // In a real app, you would fetch attendees from a database:
-    // const response = await axios.get(`https://your-api.com/conferences/${conferenceId}/attendees`);
-    
-    // Generate some basic attendees list if none exists
-    if (!attendeesStore[conferenceId]) {
-      // Create an initial set of attendees including the current user
-      attendeesStore[conferenceId] = [
-        {
-          id: currentUserId || `user_${Date.now()}_1`,
-          profile: {
-            id: currentUserId || `user_${Date.now()}_1`,
-            firstName: 'Current',
-            lastName: 'User',
-            headline: 'Software Engineer',
-            profilePicture: 'https://randomuser.me/api/portraits/people/1.jpg',
-            currentPosition: {
-              title: 'Software Engineer',
-              companyName: 'Tech Company'
-            }
-          },
-          isVisible: true
+    // Check if this is a POST request with registration data
+    if (event.httpMethod === 'POST') {
+      try {
+        const data = JSON.parse(event.body);
+        if (data.userData && data.conferenceId) {
+          // Register user with the conference using the shared store
+          const userId = data.userData.id;
+          const isVisible = data.isVisible !== false;
+          
+          if (store.registerAttendee(data.conferenceId, userId, data.userData, isVisible)) {
+            return {
+              statusCode: 200,
+              headers,
+              body: JSON.stringify({
+                status: 'success',
+                message: 'User registered for conference',
+                conferenceId: data.conferenceId,
+                userId: userId
+              })
+            };
+          }
         }
-      ];
-      
-      // Add another user for demo purposes
-      if (currentUserId) {
-        attendeesStore[conferenceId].push({
-          id: `user_${Date.now()}_2`,
-          profile: {
-            id: `user_${Date.now()}_2`,
-            firstName: 'Another',
-            lastName: 'Attendee',
-            headline: 'Product Manager',
-            profilePicture: 'https://randomuser.me/api/portraits/people/2.jpg',
-            currentPosition: {
-              title: 'Product Manager',
-              companyName: 'Tech Company'
-            }
-          },
-          isVisible: true
-        });
+      } catch (parseError) {
+        console.error('Error parsing registration data:', parseError);
       }
     }
     
-    // Filter attendees based on visibility and current user
-    let attendees = attendeesStore[conferenceId] || [];
+    // Get attendees from the shared store
+    const attendees = store.getAttendees(conferenceId, currentUserId);
     
-    // Only return visible attendees and exclude current user if specified
-    attendees = attendees.filter(attendee => {
-      // Skip hidden attendees
-      if (attendee.isVisible === false) {
-        return false;
-      }
-      
-      // Skip current user if currentUserId is provided
-      if (currentUserId && attendee.id === currentUserId) {
-        return false;
-      }
-      
-      return true;
-    });
+    // Log debug info
+    console.log('Debug info:', store.getDebugInfo());
 
     return {
       statusCode: 200,
