@@ -75,6 +75,16 @@
         </div>
         
         <div id="statusMessage" class="status-message" style="display: none;"></div>
+        
+        <!-- Debug section for troubleshooting LinkedIn API issues -->
+        <div id="debugPanel" style="display: none; margin-top: 30px; text-align: left; border-top: 1px solid #ddd; padding-top: 20px;">
+            <h3>Debug Panel</h3>
+            <p>If you're having trouble with LinkedIn authentication, you can use this panel to troubleshoot:</p>
+            <button id="testLinkedInAPI" style="background: #0077b5; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; margin: 10px 0;">
+                Test LinkedIn API Access
+            </button>
+            <div id="debugResults" style="background: #f5f5f5; padding: 10px; margin-top: 10px; border-radius: 4px; font-family: monospace; font-size: 12px; max-height: 300px; overflow: auto;"></div>
+        </div>
     </div>
 
     <script>
@@ -110,6 +120,14 @@
         const state = urlParams.get('state');
         const error = urlParams.get('error');
         const errorDescription = urlParams.get('error_description');
+        
+        // Log current URL for debugging
+        console.log('Current URL:', window.location.href);
+        
+        // For debugging Netlify environment
+        console.log('Using Netlify environment:');
+        console.log('- Client ID:', LINKEDIN_CLIENT_ID);
+        console.log('- Redirect URI:', REDIRECT_URI);
         
         // Parse conference details from state
         let conferenceDetails = {};
@@ -246,6 +264,87 @@
         } else {
             // Redirect to auth page if no code or error
             window.location.href = './auth.html';
+        }
+        
+        // Debug mode - Show debug panel when URL includes debug=true
+        if (urlParams.get('debug') === 'true') {
+            document.getElementById('debugPanel').style.display = 'block';
+            
+            // Add event listener for test button
+            document.getElementById('testLinkedInAPI').addEventListener('click', async function() {
+                const debugResults = document.getElementById('debugResults');
+                debugResults.innerHTML = 'Testing LinkedIn API access...';
+                
+                try {
+                    // Get the access token from the URL parameter
+                    if (!code) {
+                        debugResults.innerHTML = 'No authorization code found in URL. Cannot test LinkedIn API.';
+                        return;
+                    }
+                    
+                    // First, exchange the code for an access token
+                    debugResults.innerHTML = 'Getting access token...';
+                    
+                    const tokenResponse = await fetch('/.netlify/functions/linkedin-token', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ code })
+                    });
+                    
+                    const tokenData = await tokenResponse.json();
+                    
+                    if (tokenData.status === 'error') {
+                        debugResults.innerHTML = `Error getting access token: ${tokenData.message || 'Unknown error'}`;
+                        return;
+                    }
+                    
+                    // Access token is now available, test the APIs
+                    debugResults.innerHTML = 'Testing LinkedIn APIs...';
+                    
+                    const testResponse = await fetch('/.netlify/functions/linkedin-test', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ accessToken: tokenData.accessToken })
+                    });
+                    
+                    const testResults = await testResponse.json();
+                    
+                    // Format and display the results
+                    let resultHtml = '<h4>Test Results:</h4>';
+                    
+                    // Environment info
+                    resultHtml += '<h5>Environment:</h5>';
+                    resultHtml += '<ul>';
+                    for (const [key, value] of Object.entries(testResults.environment || {})) {
+                        resultHtml += `<li>${key}: ${value}</li>`;
+                    }
+                    resultHtml += '</ul>';
+                    
+                    // Endpoint results
+                    resultHtml += '<h5>API Endpoints:</h5>';
+                    for (const [endpoint, result] of Object.entries(testResults.endpoints || {})) {
+                        resultHtml += `<div style="margin-bottom: 10px; padding: 5px; border: 1px solid ${result.status === 'success' ? '#28a745' : '#dc3545'};">`;
+                        resultHtml += `<strong>${endpoint}</strong>: ${result.status} (${result.statusCode})<br>`;
+                        
+                        if (result.status === 'success') {
+                            resultHtml += `<pre>${JSON.stringify(result.data, null, 2)}</pre>`;
+                        } else {
+                            resultHtml += `<div style="color: #dc3545;">Error: ${result.message}</div>`;
+                            resultHtml += `<pre>${JSON.stringify(result.errorData, null, 2)}</pre>`;
+                        }
+                        
+                        resultHtml += '</div>';
+                    }
+                    
+                    debugResults.innerHTML = resultHtml;
+                } catch (error) {
+                    debugResults.innerHTML = `Error testing LinkedIn API: ${error.message}`;
+                }
+            });
         }
     </script>
 </body>
