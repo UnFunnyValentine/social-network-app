@@ -4,36 +4,6 @@ const axios = require('axios');
 // Import the shared store for conference data
 const store = require('./shared-store');
 
-// Global in-memory storage for conference attendees (in production, use a database)
-// This will persist between function calls as long as the function instance stays warm
-const conferenceAttendees = {};
-
-// Function to register a user for a conference
-function registerUserForConference(conferenceId, userData) {
-  if (!conferenceId || !userData || !userData.id) {
-    console.error('Invalid data for registration');
-    return false;
-  }
-
-  // Initialize conference if it doesn't exist
-  if (!conferenceAttendees[conferenceId]) {
-    conferenceAttendees[conferenceId] = {};
-  }
-
-  // Store user data keyed by user ID
-  conferenceAttendees[conferenceId][userData.id] = {
-    id: userData.id,
-    profile: userData,
-    isVisible: userData.isVisible !== false, // Default to visible
-    joinedAt: new Date().toISOString()
-  };
-
-  console.log(`User ${userData.id} registered for conference ${conferenceId}`);
-  console.log(`Conference ${conferenceId} now has ${Object.keys(conferenceAttendees[conferenceId]).length} attendees`);
-  
-  return true;
-}
-
 exports.handler = async function(event, context) {
   // CORS headers for cross-origin requests
   const headers = {
@@ -97,6 +67,10 @@ exports.handler = async function(event, context) {
           const isVisible = data.isVisible !== false;
           
           if (store.registerAttendee(data.conferenceId, userId, data.userData, isVisible)) {
+            // Log all the attendees for this conference
+            const allAttendees = store.getAttendees(data.conferenceId);
+            console.log(`After registration, conference ${data.conferenceId} has ${allAttendees.length} attendees`);
+            
             return {
               statusCode: 200,
               headers,
@@ -104,7 +78,8 @@ exports.handler = async function(event, context) {
                 status: 'success',
                 message: 'User registered for conference',
                 conferenceId: data.conferenceId,
-                userId: userId
+                userId: userId,
+                attendeeCount: allAttendees.length + 1 // +1 to include the current user
               })
             };
           }
@@ -117,8 +92,29 @@ exports.handler = async function(event, context) {
     // Get attendees from the shared store
     const attendees = store.getAttendees(conferenceId, currentUserId);
     
-    // Log debug info
-    console.log('Debug info:', store.getDebugInfo());
+    // Log full debug info to help diagnose issues
+    const debugInfo = store.getDebugInfo();
+    console.log('Server debug info:', JSON.stringify(debugInfo, null, 2));
+    
+    // Detailed logging about each attendee
+    if (attendees.length > 0) {
+      console.log(`Found ${attendees.length} attendees for conference ${conferenceId}:`);
+      attendees.forEach((attendee, index) => {
+        console.log(`Attendee #${index + 1}: ${attendee.profile.name || attendee.id}`);
+      });
+    } else {
+      // Log info about why no attendees were returned
+      const allForConference = store.conferenceAttendees[conferenceId] || {};
+      const allAttendeeCount = Object.keys(allForConference).length;
+      console.log(`No attendees returned for ${conferenceId}. Total in db: ${allAttendeeCount}`);
+      
+      if (allAttendeeCount > 0) {
+        console.log('Existing attendees:');
+        Object.values(allForConference).forEach(a => {
+          console.log(`- ${a.id}: visibility=${a.isVisible}, name=${a.profile.name || 'unnamed'}`);
+        });
+      }
+    }
 
     return {
       statusCode: 200,
@@ -126,7 +122,8 @@ exports.handler = async function(event, context) {
       body: JSON.stringify({
         conferenceId,
         attendees,
-        totalCount: attendees.length
+        totalCount: attendees.length,
+        timestamp: new Date().toISOString() // Add timestamp to help debug caching issues
       })
     };
   } catch (error) {
