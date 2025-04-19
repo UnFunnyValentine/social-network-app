@@ -452,13 +452,7 @@
                 // Make the API call with proper error handling
                 let attendeesResponse;
                 try {
-                    attendeesResponse = await fetch(attendeesUrl, {
-                        method: 'GET',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json'
-                        }
-                    });
+                    attendeesResponse = await fetch(attendeesUrl);
                 } catch (fetchError) {
                     console.error('Error fetching from primary URL:', fetchError);
                     
@@ -466,13 +460,7 @@
                     const fallbackUrl = `/api/conference/${conferenceId}/attendees?currentUserId=${encodeURIComponent(currentUserId)}`;
                     console.log('Trying fallback URL:', fallbackUrl);
                     
-                    attendeesResponse = await fetch(fallbackUrl, {
-                        method: 'GET',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json'
-                        }
-                    });
+                    attendeesResponse = await fetch(fallbackUrl);
                 }
                 
                 if (!attendeesResponse.ok) {
@@ -482,6 +470,7 @@
                 const attendeesData = await attendeesResponse.json();
                 console.log('Conference attendees data:', JSON.stringify(attendeesData, null, 2));
                 
+                // Extract attendees from the response
                 const attendees = attendeesData.attendees || [];
                 
                 // If we have attendees, process them
@@ -490,7 +479,7 @@
             } catch (error) {
                 console.error('Error generating connections:', error);
                 
-                // Return empty array rather than dummy data
+                // Return empty array - no test data
                 return [];
             } finally {
                 // Hide loading overlay
@@ -500,6 +489,20 @@
 
         // Helper function to process attendees data into connection format
         function processAttendees(attendees) {
+            // Make sure attendees is an array
+            if (!Array.isArray(attendees)) {
+                console.error('Attendees is not an array:', attendees);
+                attendees = [];
+            }
+            
+            // If empty array, return empty list
+            if (attendees.length === 0) {
+                console.log('No attendees to process');
+                return [];
+            }
+            
+            console.log('Processing attendees:', attendees);
+            
             // Filter out the current user
             const currentUserId = JSON.parse(localStorage.getItem('linkedInUser')).id;
             
@@ -518,6 +521,8 @@
             // Process remaining attendees
             return filteredAttendees.map(attendee => {
                 console.log('Processing attendee:', JSON.stringify(attendee, null, 2));
+                
+                // Handle both data formats - profile might be nested or direct
                 const profile = attendee.profile || attendee;
                 
                 // Get name - prefer complete name over firstname/lastname combination
@@ -532,15 +537,15 @@
                 }
                 
                 // Get professional headline - avoid using "LinkedIn User" placeholder
-                let title = profile.headline || profile.currentPosition?.title;
+                let title = profile.headline || profile.title || profile.currentPosition?.title;
                 if (!title) {
-                    title = 'Professional';
+                    title = profile.company ? `Professional at ${profile.company}` : 'Professional';
                 }
                 
                 // Get company name
-                const company = profile.currentPosition?.companyName || profile.company || '';
+                const company = profile.company || profile.currentPosition?.companyName || '';
                 
-                // Get profile URL
+                // Get profile URL or create a search URL
                 let profileUrl;
                 if (profile.vanityName && !profile.vanityName.match(/^[A-Z0-9]{8,12}$/i)) {
                     profileUrl = `https://www.linkedin.com/in/${profile.vanityName}`;
@@ -550,8 +555,22 @@
                     profileUrl = `search:${attendee.id || profile.id}`;
                 }
                 
-                // Get profile picture
-                const pictureUrl = profile.profilePicture || profile.pictureUrl || 'https://randomuser.me/api/portraits/people/' + Math.floor(Math.random() * 100) + '.jpg';
+                // Get profile picture with fallbacks
+                let pictureUrl = profile.profilePicture || profile.pictureUrl || profile.picture;
+                
+                // If the profile picture is a complex object (LinkedIn API format)
+                if (typeof pictureUrl === 'object' && pictureUrl?.['displayImage~']?.elements?.[0]?.identifiers?.[0]?.identifier) {
+                    pictureUrl = pictureUrl['displayImage~'].elements[0].identifiers[0].identifier;
+                }
+                
+                // Use a random avatar if no picture is available
+                if (!pictureUrl) {
+                    const randomId = Math.floor(Math.random() * 100);
+                    pictureUrl = `https://randomuser.me/api/portraits/people/${randomId}.jpg`;
+                }
+                
+                // Generate last active time (random between 1-60 minutes)
+                const lastActive = Math.floor(Math.random() * 60) + 1;
                 
                 return {
                     id: attendee.id || profile.id,
@@ -560,7 +579,7 @@
                     company: company,
                     pictureUrl: pictureUrl,
                     profileUrl: profileUrl,
-                    lastActive: Math.floor(Math.random() * 60) + 1,
+                    lastActive: lastActive,
                     profile: profile
                 };
             });
@@ -589,10 +608,10 @@
             
             welcomeMessage.innerHTML = `
                 <h3>Welcome, ${userName}!</h3>
-                <p>Find other attendees at "${conferenceName}" below.</p>
+                <p>Conference: "${conferenceName}"</p>
                 <p>${connections.length > 0 
-                    ? `Total attendees shown: ${connections.length}` 
-                    : 'No other attendees found yet. Invite others to join!'}
+                    ? `Showing ${connections.length} other attendee${connections.length === 1 ? '' : 's'}` 
+                    : 'No other attendees found yet'}
                 </p>
             `;
             connectionsList.appendChild(welcomeMessage);
@@ -631,16 +650,16 @@
                         <div class="empty-state">
                             <i class="fas fa-search"></i>
                             <p>No attendees found matching your search.</p>
-                            <p>There are no other attendees yet. Invite others to join!</p>
+                            <p>You're currently the only attendee at this conference.</p>
                         </div>
                     `;
                 } else {
                     // No connections and no search, fresh empty state
                     connectionsList.innerHTML += `
                         <div class="empty-state">
-                            <i class="fas fa-users"></i>
-                            <p>No other attendees found for this conference yet.</p>
-                            <p>Share the conference link to invite others!</p>
+                            <i class="fas fa-user-friends"></i>
+                            <p>You're the only attendee at this conference right now.</p>
+                            <p>Invite others to join this conference!</p>
                             <button class="btn" onclick="showShareOptions()" style="margin-top: 15px;">
                                 <i class="fas fa-share-alt"></i> Share Conference Link
                             </button>
@@ -738,8 +757,8 @@
                 connectionsList.innerHTML = `
                     <div class="empty-state">
                         <i class="fas fa-sync-alt fa-spin"></i>
-                        <p>Refreshing LinkedIn connections data...</p>
-                        <p>Fetching attendees for this conference from LinkedIn.</p>
+                        <p>Refreshing attendee data...</p>
+                        <p>Checking for other attendees at this conference.</p>
                     </div>
                 `;
                 
@@ -754,14 +773,14 @@
                     console.log(`Refreshed ${connections.length} connections successfully`);
                     displayConnections(connections);
                 } else {
-                    // If we didn't get any data, show empty state
-                    console.warn('No connections returned after refresh');
+                    // If we didn't get any data, show empty state with invitation option
+                    console.warn('No other attendees found for this conference');
                     connectionsList.innerHTML = `
                         <div class="empty-state">
                             <i class="fas fa-users"></i>
-                            <p>No other attendees found for this conference yet.</p>
-                            <p>Share the conference link with others to see them here when they join.</p>
-                            <button class="btn" onclick="showShareOptions()">
+                            <p>You're the only attendee at this conference right now.</p>
+                            <p>Invite others to join this conference to connect with them here.</p>
+                            <button class="btn" onclick="showShareOptions()" style="margin-top: 15px;">
                                 <i class="fas fa-share-alt"></i> Share Conference Link
                             </button>
                         </div>
@@ -785,7 +804,7 @@
                     z-index: 1000;
                     animation: fadeOut 3s forwards;
                 `;
-                successIndicator.textContent = 'Connections refreshed successfully';
+                successIndicator.textContent = 'Refreshed successfully';
                 document.body.appendChild(successIndicator);
                 
                 // Remove the indicator after animation
@@ -802,7 +821,7 @@
                 connectionsList.innerHTML = `
                     <div class="empty-state">
                         <i class="fas fa-exclamation-triangle" style="color: #dc3545;"></i>
-                        <p>Error refreshing connections: ${error.message}</p>
+                        <p>Error refreshing attendee list: ${error.message}</p>
                         <p>Please try again later.</p>
                         <button class="btn" onclick="refreshConnections()">
                             <i class="fas fa-sync-alt"></i> Try Again
