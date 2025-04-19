@@ -32,6 +32,7 @@ function registerAttendee(conferenceId, userId, userData, isVisible = true) {
   };
 
   console.log(`User ${userId} ${conferenceAttendees[conferenceId][userId].isVisible ? 'visible' : 'hidden'} in conference ${conferenceId}`);
+  console.log(`Conference ${conferenceId} now has ${Object.keys(conferenceAttendees[conferenceId]).length} attendees`);
   
   return true;
 }
@@ -97,7 +98,17 @@ function getAttendees(conferenceId, currentUserId = null) {
   
   console.log(`Returning ${attendees.length} out of ${totalCount} attendees for conference ${conferenceId}`);
   
+  // Log the attendees being returned
+  attendees.forEach(a => {
+    console.log(`  Attendee: ${a.profile.name || a.id}`);
+  });
+  
   return attendees;
+}
+
+// Function to check if conference exists
+function conferenceExists(conferenceId) {
+  return !!conferenceAttendees[conferenceId];
 }
 
 // Function to get debug info
@@ -125,5 +136,6 @@ module.exports = {
   registerAttendee,
   updateVisibility,
   getAttendees,
+  conferenceExists,
   getDebugInfo
 }; 
