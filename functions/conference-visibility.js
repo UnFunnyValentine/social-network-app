@@ -1,6 +1,9 @@
 // Conference visibility update function
 const axios = require('axios');
 
+// Import the shared store for conference data
+const store = require('./shared-store');
+
 exports.handler = async function(event, context) {
   // CORS headers for cross-origin requests
   const headers = {
@@ -46,25 +49,36 @@ exports.handler = async function(event, context) {
 
     console.log('Updating visibility for user:', { userId, conferenceId, isVisible });
     
-    // In a real app, you would update the user's visibility in a database:
-    // const response = await axios.put('https://your-api.com/visibility', data);
+    // First ensure the user is registered
+    if (userData) {
+      store.registerAttendee(conferenceId, userId, userData, isVisible === true);
+    }
+    
+    // Update the visibility
+    const success = store.updateVisibility(conferenceId, userId, isVisible === true);
+    
+    if (!success) {
+      console.log('User not found in conference, registering now');
+      // Try to register the user
+      store.registerAttendee(conferenceId, userId, userData, isVisible === true);
+    }
+    
+    // Log the current state
+    console.log('Debug info:', store.getDebugInfo());
 
     // Return success response
-    const visibilityData = {
-      userId,
-      conferenceId,
-      isVisible: isVisible === true, // Explicitly convert to boolean
-      timestamp: new Date().toISOString(),
-      userData: userData || {}
-    };
-
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         status: 'success',
         message: 'Visibility updated successfully',
-        data: visibilityData
+        data: {
+          userId,
+          conferenceId,
+          isVisible: isVisible === true,
+          timestamp: new Date().toISOString()
+        }
       })
     };
   } catch (error) {
