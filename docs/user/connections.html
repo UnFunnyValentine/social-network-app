@@ -471,50 +471,14 @@
                 
                 const attendees = attendeesData.attendees || [];
                 
-                if (attendees.length === 0) {
-                    console.log('No attendees found, using API to get recommendations');
-                    // If no attendees found, try to get recommendations from API
-                    const recommendationsEndpoint = `/conference/${conferenceId}/recommendations`;
-                    const recommendationsUrl = `${baseApiUrl}${recommendationsEndpoint}?userId=${currentUserId}`;
-                    
-                    const recommendationsResponse = await fetch(recommendationsUrl);
-                    if (recommendationsResponse.ok) {
-                        const recommendationsData = await recommendationsResponse.json();
-                        if (recommendationsData.recommendations && recommendationsData.recommendations.length > 0) {
-                            console.log('Using recommended connections from API');
-                            return processAttendees(recommendationsData.recommendations);
-                        }
-                    }
-                    
-                    // Try fallback to LinkedIn connections endpoint if available
-                    const connectionsEndpoint = `/linkedin/connections`;
-                    const connectionsUrl = `${baseApiUrl}${connectionsEndpoint}?userId=${currentUserId}`;
-                    
-                    const connectionsResponse = await fetch(connectionsUrl);
-                    if (connectionsResponse.ok) {
-                        const connectionsData = await connectionsResponse.json();
-                        if (connectionsData.connections && connectionsData.connections.length > 0) {
-                            console.log('Using LinkedIn connections from API');
-                            return processAttendees(connectionsData.connections);
-                        }
-                    }
-                    
-                    // If still no connections, create a minimal set of attendees
-                    console.warn('No attendees found from any source, generating minimal test data');
-                    const minimalAttendees = generateMinimalAttendees(5);
-                    return processAttendees(minimalAttendees);
-                }
-                
                 // If we have attendees, process them
                 return processAttendees(attendees);
                 
             } catch (error) {
                 console.error('Error generating connections:', error);
                 
-                // Only if we failed to fetch real data, generate minimal test data
-                console.warn('Falling back to minimal test data due to error');
-                const minimalAttendees = generateMinimalAttendees(5);
-                return processAttendees(minimalAttendees);
+                // Return empty array rather than dummy data
+                return [];
             } finally {
                 // Hide loading overlay
                 document.getElementById('loadingOverlay').style.display = 'none';
@@ -523,10 +487,47 @@
 
         // Helper function to process attendees data into connection format
         function processAttendees(attendees) {
-            return attendees.map(attendee => {
+            // Filter out the current user
+            const currentUserId = JSON.parse(localStorage.getItem('linkedInUser')).id;
+            
+            // Remove any attendees with id matching the current user
+            const filteredAttendees = attendees.filter(attendee => {
+                const attendeeId = attendee.id || attendee.profile?.id;
+                return attendeeId !== currentUserId;
+            });
+            
+            // If no attendees remain after filtering, return empty array
+            if (filteredAttendees.length === 0) {
+                console.log('No other attendees found after filtering out current user');
+                return [];
+            }
+            
+            // Process remaining attendees
+            return filteredAttendees.map(attendee => {
                 console.log('Processing attendee:', JSON.stringify(attendee, null, 2));
                 const profile = attendee.profile || attendee;
                 
+                // Get name - prefer complete name over firstname/lastname combination
+                let name = profile.name;
+                if (!name && (profile.firstName || profile.lastName)) {
+                    name = `${profile.firstName || ''} ${profile.lastName || ''}`.trim();
+                }
+                
+                // Only use a placeholder as absolute last resort
+                if (!name) {
+                    name = 'Conference Attendee';
+                }
+                
+                // Get professional headline - avoid using "LinkedIn User" placeholder
+                let title = profile.headline || profile.currentPosition?.title;
+                if (!title) {
+                    title = 'Professional';
+                }
+                
+                // Get company name
+                const company = profile.currentPosition?.companyName || profile.company || '';
+                
+                // Get profile URL
                 let profileUrl;
                 if (profile.vanityName && !profile.vanityName.match(/^[A-Z0-9]{8,12}$/i)) {
                     profileUrl = `https://www.linkedin.com/in/${profile.vanityName}`;
@@ -536,43 +537,20 @@
                     profileUrl = `search:${attendee.id || profile.id}`;
                 }
                 
+                // Get profile picture
+                const pictureUrl = profile.profilePicture || profile.pictureUrl || 'https://randomuser.me/api/portraits/people/' + Math.floor(Math.random() * 100) + '.jpg';
+                
                 return {
                     id: attendee.id || profile.id,
-                    name: profile.name || `${profile.firstName || ''} ${profile.lastName || ''}`.trim() || 'LinkedIn User',
-                    title: profile.headline || profile.currentPosition?.title || 'Professional',
-                    company: profile.currentPosition?.companyName || profile.company || '',
-                    pictureUrl: profile.profilePicture || profile.pictureUrl || 'https://randomuser.me/api/portraits/people/' + Math.floor(Math.random() * 100) + '.jpg',
+                    name: name,
+                    title: title,
+                    company: company,
+                    pictureUrl: pictureUrl,
                     profileUrl: profileUrl,
                     lastActive: Math.floor(Math.random() * 60) + 1,
                     profile: profile
                 };
             });
-        }
-
-        // Helper function to generate minimal test data only if API fetch fails
-        function generateMinimalAttendees(count) {
-            // This should only be used as a last resort if real data can't be fetched
-            console.warn('Generating minimal test attendees as fallback');
-            
-            const attendees = [];
-            for (let i = 0; i < count; i++) {
-                const id = `test_${Date.now()}_${i}`;
-                attendees.push({
-                    id: id,
-                    profile: {
-                        id: id,
-                        firstName: `Test ${i+1}`,
-                        lastName: 'Attendee',
-                        headline: 'LinkedIn User',
-                        profilePicture: `https://randomuser.me/api/portraits/people/${i * 10 + 5}.jpg`,
-                        currentPosition: {
-                            title: 'Professional',
-                            companyName: 'Company ' + (i+1)
-                        }
-                    }
-                });
-            }
-            return attendees;
         }
 
         // Function to display connections
@@ -593,10 +571,16 @@
             // Add welcome message and conference context
             const welcomeMessage = document.createElement('div');
             welcomeMessage.className = 'conference-context';
+            
+            const userName = document.getElementById('profile-name').textContent;
+            
             welcomeMessage.innerHTML = `
-                <h3>Welcome, ${document.getElementById('profile-name').textContent}!</h3>
-                <p>Find your connections attending "${conferenceName}" below.</p>
-                <p>Total attendees: ${connections.length}</p>
+                <h3>Welcome, ${userName}!</h3>
+                <p>Find other attendees at "${conferenceName}" below.</p>
+                <p>${connections.length > 0 
+                    ? `Total attendees shown: ${connections.length}` 
+                    : 'No other attendees found yet. Invite others to join!'}
+                </p>
             `;
             connectionsList.appendChild(welcomeMessage);
             
@@ -618,13 +602,38 @@
             }
             
             if (filteredConnections.length === 0) {
-                connectionsList.innerHTML += `
-                    <div class="empty-state">
-                        <i class="fas fa-user-slash"></i>
-                        <p>No attendees found${searchQuery ? ' matching your search' : ''}.</p>
-                        <p>${searchQuery ? 'Try a different search term' : 'Try refreshing the connections'}.</p>
-                    </div>
-                `;
+                // No connections found, show appropriate message
+                if (connections.length > 0 && searchQuery) {
+                    // We have connections but search returned no results
+                    connectionsList.innerHTML += `
+                        <div class="empty-state">
+                            <i class="fas fa-search"></i>
+                            <p>No attendees found matching your search.</p>
+                            <p>Try a different search term or clear the search box.</p>
+                        </div>
+                    `;
+                } else if (searchQuery) {
+                    // No connections and search was performed
+                    connectionsList.innerHTML += `
+                        <div class="empty-state">
+                            <i class="fas fa-search"></i>
+                            <p>No attendees found matching your search.</p>
+                            <p>There are no other attendees yet. Invite others to join!</p>
+                        </div>
+                    `;
+                } else {
+                    // No connections and no search, fresh empty state
+                    connectionsList.innerHTML += `
+                        <div class="empty-state">
+                            <i class="fas fa-users"></i>
+                            <p>No other attendees found for this conference yet.</p>
+                            <p>Share the conference link to invite others!</p>
+                            <button class="btn" onclick="showShareOptions()" style="margin-top: 15px;">
+                                <i class="fas fa-share-alt"></i> Share Conference Link
+                            </button>
+                        </div>
+                    `;
+                }
             } else {
                 // Display all filtered connections
                 filteredConnections.forEach(connection => {
@@ -721,6 +730,9 @@
                     </div>
                 `;
                 
+                // Register for conference to ensure we're registered
+                await registerForConference();
+                
                 // Generate and display connections with force refresh
                 const connections = await generateConnections();
                 
@@ -733,9 +745,12 @@
                     console.warn('No connections returned after refresh');
                     connectionsList.innerHTML = `
                         <div class="empty-state">
-                            <i class="fas fa-user-slash"></i>
-                            <p>No LinkedIn connections found at this conference.</p>
-                            <p>Try again later or check your LinkedIn connection settings.</p>
+                            <i class="fas fa-users"></i>
+                            <p>No other attendees found for this conference yet.</p>
+                            <p>Share the conference link with others to see them here when they join.</p>
+                            <button class="btn" onclick="showShareOptions()">
+                                <i class="fas fa-share-alt"></i> Share Conference Link
+                            </button>
                         </div>
                     `;
                 }
@@ -769,8 +784,18 @@
                 // Hide loading overlay
                 document.getElementById('loadingOverlay').style.display = 'none';
                 
-                // Show error message
-                alert('Error refreshing connections: ' + error.message);
+                // Show error message in connections list
+                const connectionsList = document.getElementById('connections-list');
+                connectionsList.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-triangle" style="color: #dc3545;"></i>
+                        <p>Error refreshing connections: ${error.message}</p>
+                        <p>Please try again later.</p>
+                        <button class="btn" onclick="refreshConnections()">
+                            <i class="fas fa-sync-alt"></i> Try Again
+                        </button>
+                    </div>
+                `;
             }
         }
         
@@ -997,37 +1022,50 @@
             });
 
             try {
-                const baseApiUrl = 'https://cholebhature.netlify.app/api';
-                const registerEndpoint = '/conference/register';
-                const registerUrl = `${baseApiUrl}${registerEndpoint}`;
+                // Use direct API URL for registration
+                const registerUrl = 'https://cholebhature.netlify.app/api/conference/register';
                 
-                const registerData = {
+                // Build proper user data to register
+                const name = userData.name || `${userData.firstName || ''} ${userData.lastName || ''}`.trim();
+                const profileData = {
                     userId,
                     conferenceId,
                     isVisible,
                     userData: {
-                        name: userData.name || `${userData.firstName} ${userData.lastName}`.trim(),
-                        email: userData.email,
-                        profilePicture: userData.profilePicture,
-                        headline: userData.headline || 'LinkedIn User'
+                        id: userId,
+                        name: name,
+                        email: userData.email || 'email@example.com',
+                        profilePicture: userData.profilePicture || '',
+                        headline: userData.headline || '',
+                        company: userData.company || '',
+                        title: userData.title || '',
+                        joinedAt: new Date().toISOString()
                     }
                 };
 
                 const response = await fetch(registerUrl, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
                     },
-                    body: JSON.stringify(registerData)
+                    body: JSON.stringify(profileData)
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || 'Failed to register for conference');
+                    const errorText = await response.text();
+                    console.error('Registration error response:', errorText);
+                    throw new Error(`Failed to register for conference: ${response.status} ${response.statusText}`);
                 }
 
                 console.log('Successfully registered for conference');
-                return await response.json();
+                
+                try {
+                    return await response.json();
+                } catch (e) {
+                    // If the response isn't valid JSON, just return a success object
+                    return { success: true };
+                }
             } catch (error) {
                 console.error('Error registering for conference:', error);
                 throw error;
@@ -1052,7 +1090,7 @@
                 await registerForConference();
                 
                 // Then update visibility status
-                const visibilityUrl = getApiUrl(apiConfig.endpoints.conferenceVisibility);
+                const visibilityUrl = `${apiConfig.baseUrl}/conference/visibility`;
                 console.log('Updating visibility at URL:', visibilityUrl);
                 
                 const response = await fetch(visibilityUrl, {
@@ -1065,9 +1103,10 @@
                         conferenceId,
                         isVisible,
                         userData: {
-                            name: userData.name || `${userData.firstName} ${userData.lastName}`.trim(),
+                            name: userData.name || `${userData.firstName || ''} ${userData.lastName || ''}`.trim(),
                             email: userData.email,
-                            profilePicture: userData.profilePicture
+                            profilePicture: userData.profilePicture,
+                            headline: userData.headline || ''
                         }
                     })
                 });
@@ -1078,7 +1117,7 @@
                 }
 
                 status.textContent = isVisible ? 'Visible to Other Attendees' : 'Hidden from Other Attendees';
-                localStorage.setItem('userVisibility', isVisible);
+                localStorage.setItem('userVisibility', isVisible.toString());
                 
                 // Update the visibility indicator without affecting the connections list
                 const visibilityIndicator = document.createElement('div');
@@ -1114,13 +1153,20 @@
 
         // Initialize visibility from stored preference
         function initializeVisibility() {
-            const isVisible = localStorage.getItem('userVisibility') !== 'false';
+            // Get stored visibility preference, default to visible if not set
+            const storedVisibility = localStorage.getItem('userVisibility');
+            const isVisible = storedVisibility === null ? true : storedVisibility !== 'false';
+            
+            // Update the toggle
             const visibilityToggle = document.getElementById('visibility-toggle');
             visibilityToggle.checked = isVisible;
             
             // Update the status text immediately
             const status = document.getElementById('visibility-status');
             status.textContent = isVisible ? 'Visible to Other Attendees' : 'Hidden from Other Attendees';
+            
+            // Ensure visibility setting is saved
+            localStorage.setItem('userVisibility', isVisible.toString());
             
             // Register for conference and update visibility in the background
             registerForConference().catch(error => {
@@ -1172,11 +1218,28 @@
                     profileName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
                 }
                 if (!profileName) {
-                    profileName = user.id || 'LinkedIn User';
+                    profileName = user.id || 'User';
                 }
                 
                 const profileEmail = user.email || 'Email not available';
-                const profileHeadline = user.headline || user.currentPosition?.title || 'LinkedIn User';
+                
+                // Get headline with fallbacks but without using "LinkedIn User" placeholder
+                let profileHeadline = '';
+                if (user.headline && user.headline !== 'LinkedIn User') {
+                    profileHeadline = user.headline;
+                } else if (user.currentPosition?.title) {
+                    profileHeadline = user.currentPosition.title;
+                    if (user.currentPosition.companyName) {
+                        profileHeadline += ` at ${user.currentPosition.companyName}`;
+                    }
+                } else if (user.title) {
+                    profileHeadline = user.title;
+                } else if (user.company) {
+                    profileHeadline = `Professional at ${user.company}`;
+                } else {
+                    // Leave blank rather than using 'LinkedIn User'
+                    profileHeadline = '';
+                }
                 
                 // For the profile picture, try multiple possible paths
                 let profilePicture = user.profilePicture;
@@ -1202,7 +1265,7 @@
                 // Create fallback values
                 const fallbackName = 'Guest User';
                 const fallbackEmail = 'guest@example.com';
-                const fallbackHeadline = 'LinkedIn User';
+                const fallbackHeadline = '';
                 const fallbackPicture = 'https://randomuser.me/api/portraits/lego/1.jpg';
                 
                 // Display fallback user profile
@@ -1298,6 +1361,84 @@ Last Updated: ${new Date().toLocaleTimeString()}
                     this.src = 'https://randomuser.me/api/portraits/lego/1.jpg'; 
                 };
                 profileImg.src = profileImageUrl;
+            }
+        }
+
+        // Function to share the conference link
+        function showShareOptions() {
+            const conferenceId = localStorage.getItem('conferenceId');
+            const conferenceName = localStorage.getItem('conferenceName');
+            
+            // Create URL for sharing
+            const shareUrl = `${window.location.origin}${window.location.pathname}?id=${conferenceId}&name=${encodeURIComponent(conferenceName)}`;
+            
+            // Create and show sharing dialog
+            const dialog = document.createElement('div');
+            dialog.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+                z-index: 1000;
+                width: 90%;
+                max-width: 400px;
+            `;
+            
+            dialog.innerHTML = `
+                <h3 style="margin-top: 0;">Share Conference Link</h3>
+                <p>Share this link to invite others to join this conference:</p>
+                <div style="display: flex; margin-bottom: 15px;">
+                    <input type="text" value="${shareUrl}" 
+                        style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" readonly id="shareUrlInput">
+                    <button onclick="copyShareUrl()" style="margin-left: 10px; background: #0077b5; color: white; border: none; border-radius: 4px; padding: 0 15px; cursor: pointer;">
+                        Copy
+                    </button>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button onclick="closeShareDialog()"
+                        style="padding: 8px 15px; background: #f5f5f5; border: none; border-radius: 4px; cursor: pointer;">
+                        Close
+                    </button>
+                </div>
+            `;
+            
+            // Add the dialog to the body
+            document.body.appendChild(dialog);
+            
+            // Store the dialog element for later reference
+            window.currentShareDialog = dialog;
+            
+            // Select the URL for easier copying
+            setTimeout(() => {
+                document.getElementById('shareUrlInput').select();
+            }, 100);
+        }
+
+        // Function to copy the share URL to clipboard
+        function copyShareUrl() {
+            const input = document.getElementById('shareUrlInput');
+            input.select();
+            document.execCommand('copy');
+            
+            // Show copied indicator
+            const copyBtn = input.nextElementSibling;
+            const originalText = copyBtn.textContent;
+            copyBtn.textContent = 'Copied!';
+            
+            setTimeout(() => {
+                copyBtn.textContent = originalText;
+            }, 2000);
+        }
+
+        // Function to close the share dialog
+        function closeShareDialog() {
+            if (window.currentShareDialog) {
+                document.body.removeChild(window.currentShareDialog);
+                window.currentShareDialog = null;
             }
         }
     </script>
