@@ -54,10 +54,17 @@ exports.handler = async function(event, context) {
       userData: userData ? `${userData.name || 'Unknown'} (${userId})` : 'None provided'
     });
     
+    // Ensure the conference exists in our store
+    const exists = store.conferenceExists(conferenceId);
+    console.log(`Conference ${conferenceId} exists in store: ${exists}`);
+    
+    // List all conferences for debug
+    console.log('All conferences in store:', Object.keys(store.conferenceAttendees));
+    
     // Check if conference exists before we try to update
     if (!store.conferenceAttendees[conferenceId]) {
       console.log(`Conference ${conferenceId} doesn't exist yet, creating it`);
-      store.conferenceAttendees[conferenceId] = {};
+      // This will be handled by registerAttendee
     }
     
     // Get current state before changes
