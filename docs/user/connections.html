@@ -426,14 +426,102 @@
             return url;
         }
 
+        // Function to automatically refresh connections periodically
+        let autoRefreshInterval = null;
+
+        // Initialize the page
+        async function initializePage() {
+            try {
+                // Display user profile first
+                displayUserProfile();
+                
+                // Hide loading overlay immediately
+                document.getElementById('loadingOverlay').style.display = 'none';
+                
+                // Generate and display connections
+                const connections = await generateConnections();
+                displayConnections(connections);
+                
+                // Initialize visibility
+                initializeVisibility();
+                
+                // Set up auto-refresh every 30 seconds if enabled
+                startAutoRefresh();
+            } catch (error) {
+                console.error('Error initializing page:', error);
+                document.getElementById('loadingOverlay').style.display = 'none';
+                alert('Error loading connections. Please try refreshing the page.');
+            }
+        }
+
+        // Start automatic refresh
+        function startAutoRefresh(intervalMs = 30000) {
+            // Clear any existing interval
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+            
+            // Set new interval
+            autoRefreshInterval = setInterval(async () => {
+                console.log('Auto-refreshing connections...');
+                try {
+                    // Silently refresh without showing loading overlay
+                    const connections = await generateConnections(true);
+                    
+                    // If connections are different from current list, update the display
+                    const currentCount = allConnections ? allConnections.length : 0;
+                    
+                    if (connections.length !== currentCount) {
+                        console.log(`Updating connections: was ${currentCount}, now ${connections.length}`);
+                        displayConnections(connections);
+                        
+                        // Show a small notification that new attendees were found
+                        if (connections.length > currentCount) {
+                            const newCount = connections.length - currentCount;
+                            const refreshIndicator = document.createElement('div');
+                            refreshIndicator.className = 'visibility-indicator';
+                            refreshIndicator.style.cssText = `
+                                position: fixed;
+                                top: 20px;
+                                right: 20px;
+                                background-color: #28a745;
+                                color: white;
+                                padding: 10px 20px;
+                                border-radius: 4px;
+                                z-index: 1000;
+                                animation: fadeOut 3s forwards;
+                            `;
+                            refreshIndicator.textContent = `Found ${newCount} new attendee${newCount === 1 ? '' : 's'}`;
+                            document.body.appendChild(refreshIndicator);
+                            
+                            // Remove the indicator after animation
+                            setTimeout(() => refreshIndicator.remove(), 3000);
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Auto-refresh error:', error);
+                    // Don't show error to user, just log it
+                }
+            }, intervalMs);
+        }
+
+        // Stop automatic refresh
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+        }
+
         // Function to generate connections from LinkedIn API
-        async function generateConnections() {
+        async function generateConnections(silent = false) {
             const conferenceId = localStorage.getItem('conferenceId');
             const currentUserId = JSON.parse(localStorage.getItem('linkedInUser')).id;
             
             console.log('Generating connections for:', {
                 conferenceId,
-                currentUserId
+                currentUserId,
+                silent
             });
             
             try {
@@ -441,26 +529,44 @@
                 console.log('Registering for conference...');
                 await registerForConference();
                 
-                // Set the correct API URL for Netlify functions
-                const attendeesUrl = `/.netlify/functions/conference-attendees?conferenceId=${encodeURIComponent(conferenceId)}&currentUserId=${encodeURIComponent(currentUserId)}`;
+                // Wait a moment to ensure registration is processed
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Set the correct API URL for Netlify functions with timestamp to avoid caching
+                const timestamp = new Date().getTime();
+                const attendeesUrl = `/.netlify/functions/conference-attendees?conferenceId=${encodeURIComponent(conferenceId)}&currentUserId=${encodeURIComponent(currentUserId)}&_t=${timestamp}`;
                 
                 console.log('Fetching conference attendees from:', attendeesUrl);
                 
-                // Show loading overlay while fetching
-                document.getElementById('loadingOverlay').style.display = 'flex';
+                // Show loading overlay while fetching if not silent
+                if (!silent) {
+                    document.getElementById('loadingOverlay').style.display = 'flex';
+                }
                 
                 // Make the API call with proper error handling
                 let attendeesResponse;
                 try {
-                    attendeesResponse = await fetch(attendeesUrl);
+                    attendeesResponse = await fetch(attendeesUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Cache-Control': 'no-cache, no-store'
+                        }
+                    });
                 } catch (fetchError) {
                     console.error('Error fetching from primary URL:', fetchError);
                     
                     // Try alternative URL format
-                    const fallbackUrl = `/api/conference/${conferenceId}/attendees?currentUserId=${encodeURIComponent(currentUserId)}`;
+                    const fallbackUrl = `/api/conference/${conferenceId}/attendees?currentUserId=${encodeURIComponent(currentUserId)}&_t=${timestamp}`;
                     console.log('Trying fallback URL:', fallbackUrl);
                     
-                    attendeesResponse = await fetch(fallbackUrl);
+                    attendeesResponse = await fetch(fallbackUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Cache-Control': 'no-cache, no-store'
+                        }
+                    });
                 }
                 
                 if (!attendeesResponse.ok) {
@@ -471,7 +577,31 @@
                 console.log('Conference attendees data:', JSON.stringify(attendeesData, null, 2));
                 
                 // Extract attendees from the response
-                const attendees = attendeesData.attendees || [];
+                let attendees = attendeesData.attendees || [];
+                
+                // If the array is empty, try a direct refresh
+                if (attendees.length === 0) {
+                    console.log('No attendees found, trying a direct refresh...');
+                    
+                    // Try the refresh endpoint directly again
+                    const refreshUrl = `/.netlify/functions/conference-attendees?conferenceId=${encodeURIComponent(conferenceId)}&currentUserId=${encodeURIComponent(currentUserId)}&refresh=true&_t=${new Date().getTime()}`;
+                    try {
+                        const refreshResponse = await fetch(refreshUrl, {
+                            headers: {
+                                'Accept': 'application/json',
+                                'Cache-Control': 'no-cache, no-store'
+                            }
+                        });
+                        
+                        if (refreshResponse.ok) {
+                            const refreshData = await refreshResponse.json();
+                            attendees = refreshData.attendees || [];
+                            console.log('After refresh, found attendees:', attendees.length);
+                        }
+                    } catch (refreshError) {
+                        console.warn('Error during refresh attempt:', refreshError);
+                    }
+                }
                 
                 // If we have attendees, process them
                 return processAttendees(attendees);
@@ -482,8 +612,10 @@
                 // Return empty array - no test data
                 return [];
             } finally {
-                // Hide loading overlay
-                document.getElementById('loadingOverlay').style.display = 'none';
+                // Hide loading overlay if not silent
+                if (!silent) {
+                    document.getElementById('loadingOverlay').style.display = 'none';
+                }
             }
         }
 
@@ -717,31 +849,6 @@
             
             return item;
         }
-        
-        // Initialize the page
-        async function initializePage() {
-            try {
-                // Display user profile first
-                displayUserProfile();
-                
-                // Hide loading overlay immediately
-                document.getElementById('loadingOverlay').style.display = 'none';
-                
-                // Generate and display connections
-                const connections = await generateConnections();
-                displayConnections(connections);
-                
-                // Initialize visibility
-                initializeVisibility();
-            } catch (error) {
-                console.error('Error initializing page:', error);
-                document.getElementById('loadingOverlay').style.display = 'none';
-                alert('Error loading connections. Please try refreshing the page.');
-            }
-        }
-
-        // Start initialization when the page loads
-        document.addEventListener('DOMContentLoaded', initializePage);
         
         // Handle refreshing connections
         async function refreshConnections() {
@@ -1058,19 +1165,37 @@
                 const registerUrl = '/.netlify/functions/conference-register';
                 
                 // Build proper user data to register
-                const name = userData.name || `${userData.firstName || ''} ${userData.lastName || ''}`.trim();
+                // Normalize data from various LinkedIn API formats
+                let name = userData.name;
+                if (!name && (userData.firstName || userData.lastName)) {
+                    name = `${userData.firstName || ''} ${userData.lastName || ''}`.trim();
+                }
+                if (!name && (userData.given_name || userData.family_name)) {
+                    name = `${userData.given_name || ''} ${userData.family_name || ''}`.trim();
+                }
+                
+                // Normalize email
+                const email = userData.email || userData.emailAddress || 'email@example.com';
+                
+                // Normalize profile picture
+                let profilePicture = userData.profilePicture || userData.pictureUrl || userData.picture;
+                if (typeof profilePicture === 'object' && profilePicture?.['displayImage~']?.elements?.[0]?.identifiers?.[0]?.identifier) {
+                    profilePicture = profilePicture['displayImage~'].elements[0].identifiers[0].identifier;
+                }
+                
+                // Create standardized profile data
                 const profileData = {
                     userId,
                     conferenceId,
                     isVisible,
                     userData: {
                         id: userId,
-                        name: name,
-                        email: userData.email || 'email@example.com',
-                        profilePicture: userData.profilePicture || '',
-                        headline: userData.headline || '',
-                        company: userData.company || '',
-                        title: userData.title || '',
+                        name: name || 'Conference Attendee',
+                        email: email,
+                        profilePicture: profilePicture || '',
+                        headline: userData.headline || userData.title || '',
+                        company: userData.company || userData.currentPosition?.companyName || '',
+                        title: userData.title || userData.headline || '',
                         joinedAt: new Date().toISOString()
                     }
                 };
@@ -1081,7 +1206,8 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Accept': 'application/json'
+                        'Accept': 'application/json',
+                        'Cache-Control': 'no-cache, no-store'
                     },
                     body: JSON.stringify(profileData)
                 });
@@ -1098,7 +1224,8 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Accept': 'application/json'
+                            'Accept': 'application/json',
+                            'Cache-Control': 'no-cache, no-store'
                         },
                         body: JSON.stringify(profileData)
                     });
@@ -1526,6 +1653,9 @@ Last Updated: ${new Date().toLocaleTimeString()}
                 window.currentShareDialog = null;
             }
         }
+
+        // Start initialization when the page loads
+        document.addEventListener('DOMContentLoaded', initializePage);
     </script>
 </body>
 </html>
