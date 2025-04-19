@@ -68,10 +68,17 @@ exports.handler = async function(event, context) {
       };
     }
     
-    // Log the current state
-    console.log('Debug info:', store.getDebugInfo());
-
-    // Return success response
+    // Get the current state of the conference
+    const allAttendees = Object.values(store.conferenceAttendees[conferenceId] || {});
+    const visibleAttendees = allAttendees.filter(a => a.isVisible === true);
+    
+    // Log info about all attendees in this conference
+    console.log(`Conference ${conferenceId} now has ${allAttendees.length} total attendees, ${visibleAttendees.length} visible`);
+    allAttendees.forEach(attendee => {
+      console.log(`- Attendee: ${attendee.id}, name: ${attendee.profile.name || 'unnamed'}, visible: ${attendee.isVisible}`);
+    });
+    
+    // Return success response with attendee info
     return {
       statusCode: 200,
       headers,
@@ -82,7 +89,9 @@ exports.handler = async function(event, context) {
           id: userId,
           conferenceId,
           isVisible: isVisible !== false,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          attendeeCount: allAttendees.length,
+          visibleAttendeeCount: visibleAttendees.length
         }
       })
     };
