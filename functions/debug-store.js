@@ -22,34 +22,89 @@ exports.handler = async function(event, context) {
   }
 
   try {
-    // Log the current state of the store
-    console.log('Store global variable:', global.CONFERENCE_DATA ? 'exists' : 'undefined');
-    console.log('All conferences in store:', Object.keys(store.conferenceAttendees));
+    // Get direct reference to the data
+    const globalData = global.ALL_CONFERENCE_DATA || {};
     
-    // Scan tmp directory for conference files
-    const tmpFiles = [];
+    // Log the current state of the store
+    console.log('Global conference data exists:', !!global.ALL_CONFERENCE_DATA);
+    console.log('All conferences in global:', Object.keys(globalData));
+    console.log('Store exported conferences:', Object.keys(store.conferenceAttendees));
+    
+    // Check if they match
+    const globalKeys = JSON.stringify(Object.keys(globalData).sort());
+    const storeKeys = JSON.stringify(Object.keys(store.conferenceAttendees).sort());
+    console.log('Keys match:', globalKeys === storeKeys);
+    
+    // Check storage
+    let masterFileExists = false;
+    let masterFileContent = '{}';
     try {
-      const tmpDir = '/tmp';
-      if (fs.existsSync(tmpDir)) {
-        const files = fs.readdirSync(tmpDir);
-        files.forEach(file => {
-          if (file.startsWith('conference_') && file.endsWith('.json')) {
-            tmpFiles.push(file);
-          }
-        });
+      const masterFilePath = path.join('/tmp', 'all-conferences.json');
+      masterFileExists = fs.existsSync(masterFilePath);
+      if (masterFileExists) {
+        masterFileContent = fs.readFileSync(masterFilePath, 'utf8');
+        console.log('Master file size:', masterFileContent.length, 'bytes');
       }
     } catch (fsError) {
-      console.error('Error scanning tmp directory:', fsError);
+      console.error('Error checking master file:', fsError);
     }
     
-    // Query parameters
+    // Parse query parameters
     const params = event.queryStringParameters || {};
     const action = params.action || '';
     const conferenceId = params.conferenceId || '';
     
+    // Special action to force-set conference data (for testing)
+    if (action === 'set_conference_data' && conferenceId && params.userId) {
+      // Create conference if it doesn't exist
+      if (!global.ALL_CONFERENCE_DATA[conferenceId]) {
+        global.ALL_CONFERENCE_DATA[conferenceId] = {};
+      }
+      
+      // Create user profile
+      const userId = params.userId;
+      const name = params.name || 'Test User';
+      const isVisible = params.isVisible !== 'false'; // Default to visible
+      
+      // Add test user to the conference
+      global.ALL_CONFERENCE_DATA[conferenceId][userId] = {
+        id: userId,
+        profile: {
+          id: userId,
+          name: name,
+          email: `${userId}@example.com`,
+          headline: 'Test User',
+          joinedAt: new Date().toISOString()
+        },
+        isVisible: isVisible
+      };
+      
+      // Save the data
+      try {
+        const data = JSON.stringify(global.ALL_CONFERENCE_DATA, null, 2);
+        fs.writeFileSync(path.join('/tmp', 'all-conferences.json'), data, 'utf8');
+        console.log('Manually saved test data to master file');
+      } catch (saveError) {
+        console.error('Error saving test data:', saveError);
+      }
+      
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          action: 'set_conference_data',
+          success: true,
+          conference: conferenceId,
+          userId: userId,
+          name: name,
+          isVisible: isVisible,
+          allConferences: Object.keys(global.ALL_CONFERENCE_DATA)
+        })
+      };
+    }
+    
     let result = {};
     
-    // Handle different actions - only debug info in production
     switch (action) {
       case 'get_attendees':
         // Get attendees for a specific conference
@@ -63,9 +118,6 @@ exports.handler = async function(event, context) {
             })
           };
         }
-        
-        // First, try to load the conference data
-        store.conferenceExists(conferenceId);
         
         const attendees = store.getAttendees(conferenceId, params.currentUserId);
         
@@ -84,17 +136,24 @@ exports.handler = async function(event, context) {
         result = {
           action: 'get_debug_info',
           debugInfo,
+          globalState: {
+            conferences: Object.keys(globalData),
+            exists: !!global.ALL_CONFERENCE_DATA,
+            instanceId: Math.random().toString(36).substring(2, 8) // To track function instances
+          },
           storage: {
-            tmpFiles,
-            conferenceIds: Object.keys(store.conferenceAttendees)
+            masterFileExists,
+            masterFileSize: masterFileContent.length
           },
           timestamp: new Date().toISOString()
         };
         
         // Add detailed info about every stored conference
         result.conferences = {};
-        Object.keys(store.conferenceAttendees).forEach(confId => {
-          const confAttendees = store.conferenceAttendees[confId];
+        
+        // From global data
+        for (const confId in globalData) {
+          const confAttendees = globalData[confId];
           result.conferences[confId] = {
             attendeeCount: Object.keys(confAttendees).length,
             attendees: Object.values(confAttendees).map(a => ({
@@ -104,7 +163,7 @@ exports.handler = async function(event, context) {
               joinedAt: a.joinedAt
             }))
           };
-        });
+        }
     }
 
     // Return the current state
