@@ -1145,69 +1145,65 @@
             window.location.href = window.location.pathname + '?bypass_auth=true';
         }
         
-        // Function to test different LinkedIn profile formats
+        // Function to test LinkedIn profile format
         function testLinkedInFormat() {
-            // Create a test user profile with the exact LinkedIn API format
+            // Create a test user profile with the LinkedIn API format
             const testProfile = {
-                id: 'linkedin_test_user',
-                // LinkedIn R_EMAILADDRESS scope
-                emailAddress: 'test.user@example.com',
+                id: "linkedin_test_user_" + Date.now(),
                 firstName: {
                     localized: {
-                        en_US: 'Test'
+                        en_US: "John"
                     },
                     preferredLocale: {
-                        country: 'US',
-                        language: 'en'
+                        country: "US",
+                        language: "en"
                     }
                 },
                 lastName: {
                     localized: {
-                        en_US: 'User'
+                        en_US: "Doe"
                     },
                     preferredLocale: {
-                        country: 'US',
-                        language: 'en'
+                        country: "US",
+                        language: "en"
                     }
                 },
-                // LinkedIn API v2 format for profile picture
                 profilePicture: {
-                    'displayImage~': {
-                        elements: [
-                            {
-                                identifiers: [
-                                    {
-                                        identifier: 'https://randomuser.me/api/portraits/men/1.jpg'
-                                    }
-                                ]
-                            }
-                        ]
-                    }
+                    displayImage: "https://randomuser.me/api/portraits/men/1.jpg"
                 },
-                // Basic profile info
-                headline: 'Software Engineer at LinkedIn',
-                vanityName: 'testuser',
-                // Current conference info
-                currentConference: {
-                    id: 'conf_linkedin_test',
-                    name: 'LinkedIn Developer Conference',
-                    location: 'LinkedIn HQ, Sunnyvale, CA'
+                emailAddress: "john.doe@example.com",
+                // Conference information
+                conference: {
+                    id: "conf_linkedin_test",
+                    name: "LinkedIn Test Conference",
+                    location: "Virtual Event"
                 }
             };
             
             // Save to localStorage
             try {
                 localStorage.setItem('linkedInUser', JSON.stringify(testProfile));
-                localStorage.setItem('conferenceId', testProfile.currentConference.id);
-                localStorage.setItem('conferenceName', testProfile.currentConference.name);
-                localStorage.setItem('conferenceLocation', testProfile.currentConference.location);
+                localStorage.setItem('conferenceId', testProfile.conference.id);
+                localStorage.setItem('conferenceName', testProfile.conference.name);
+                localStorage.setItem('conferenceLocation', testProfile.conference.location);
                 localStorage.setItem('isAuthenticated', 'true');
                 localStorage.setItem('authTime', new Date().toISOString());
                 
-                alert('LinkedIn API format data set in localStorage. Refreshing page...');
-                setTimeout(refreshPage, 500);
+                // Log the user ID
+                console.log(`Created test user with LinkedIn format. User ID: ${testProfile.id}`);
+                alert(`LinkedIn format data set in localStorage.\nUser ID: ${testProfile.id}\nRefreshing page...`);
+                
+                // Register this user for the conference
+                setTimeout(() => {
+                    registerForConference()
+                        .then(() => refreshPage())
+                        .catch(err => {
+                            console.error('Error registering test user:', err);
+                            refreshPage();
+                        });
+                }, 500);
             } catch (error) {
-                alert('Error setting test data: ' + error.message);
+                alert('Error setting LinkedIn test data: ' + error.message);
             }
         }
         
@@ -1216,7 +1212,7 @@
             // Create a test user profile with the LinkedIn OAuth format
             // This is the format we get when using Sign In with LinkedIn OAuth 2.0
             const testProfile = {
-                sub: "1234567890",
+                sub: "oauth_test_user_" + Date.now(),
                 name: "Jane Doe",
                 given_name: "Jane",
                 family_name: "Doe",
@@ -1250,8 +1246,19 @@
                 localStorage.setItem('isAuthenticated', 'true');
                 localStorage.setItem('authTime', new Date().toISOString());
                 
-                alert('LinkedIn OAuth format data set in localStorage. Refreshing page...');
-                setTimeout(refreshPage, 500);
+                // Log the user ID
+                console.log(`Created test user with OAuth format. User ID (sub): ${testProfile.sub}`);
+                alert(`LinkedIn OAuth format data set in localStorage.\nUser ID: ${testProfile.sub}\nRefreshing page...`);
+                
+                // Register this user for the conference
+                setTimeout(() => {
+                    registerForConference()
+                        .then(() => refreshPage())
+                        .catch(err => {
+                            console.error('Error registering test user:', err);
+                            refreshPage();
+                        });
+                }, 500);
             } catch (error) {
                 alert('Error setting OAuth test data: ' + error.message);
             }
@@ -1773,22 +1780,45 @@ Last Updated: ${new Date().toLocaleTimeString()}
                 const conferenceId = localStorage.getItem('conferenceId');
                 const currentUser = JSON.parse(localStorage.getItem('linkedInUser'));
                 
+                // Make sure we have the current user ID
+                const currentUserId = currentUser.id || currentUser.sub;
+                if (!currentUserId) {
+                    alert('Cannot determine current user ID. Please log in again.');
+                    return;
+                }
+                
                 // Create a test user with a different ID
                 const testUserId = `test_user_${Date.now()}`;
                 const testName = `Test User ${new Date().toLocaleTimeString()}`;
+                
+                // Display info to user
+                alert(`Creating test user with ID ${testUserId} and adding to conference ${conferenceId}.\nYour ID is ${currentUserId}`);
                 
                 // Make a direct request to set the data
                 const url = `/.netlify/functions/debug-store?action=set_conference_data&conferenceId=${encodeURIComponent(conferenceId)}&userId=${encodeURIComponent(testUserId)}&name=${encodeURIComponent(testName)}`;
                 
                 const response = await fetch(url);
-                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                }
                 
+                const result = await response.json();
                 console.log('Set test data result:', result);
                 
                 // Also add the current user to ensure they're visible too
-                const currentUserUrl = `/.netlify/functions/debug-store?action=set_conference_data&conferenceId=${encodeURIComponent(conferenceId)}&userId=${encodeURIComponent(currentUser.id)}&name=${encodeURIComponent(currentUser.name || 'Current User')}`;
+                const currentUserName = currentUser.name || `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || 'Current User';
+                const currentUserUrl = `/.netlify/functions/debug-store?action=set_conference_data&conferenceId=${encodeURIComponent(conferenceId)}&userId=${encodeURIComponent(currentUserId)}&name=${encodeURIComponent(currentUserName)}`;
                 
-                await fetch(currentUserUrl);
+                const currentUserResponse = await fetch(currentUserUrl);
+                if (!currentUserResponse.ok) {
+                    throw new Error(`Server returned ${currentUserResponse.status}: ${currentUserResponse.statusText} when adding current user`);
+                }
+                
+                const currentUserResult = await currentUserResponse.json();
+                console.log('Set current user result:', currentUserResult);
+                
+                // Wait a moment for data to be saved
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 
                 // Refresh connections to show the new test user
                 refreshConnections();
