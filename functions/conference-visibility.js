@@ -47,24 +47,55 @@ exports.handler = async function(event, context) {
       };
     }
 
-    console.log('Updating visibility for user:', { userId, conferenceId, isVisible });
+    console.log('Updating visibility for user:', { 
+      userId, 
+      conferenceId, 
+      isVisible, 
+      userData: userData ? `${userData.name || 'Unknown'} (${userId})` : 'None provided'
+    });
+    
+    // Check if conference exists before we try to update
+    if (!store.conferenceAttendees[conferenceId]) {
+      console.log(`Conference ${conferenceId} doesn't exist yet, creating it`);
+      store.conferenceAttendees[conferenceId] = {};
+    }
+    
+    // Get current state before changes
+    const beforeAttendees = Object.keys(store.conferenceAttendees[conferenceId] || {}).length;
+    console.log(`Conference ${conferenceId} has ${beforeAttendees} attendees before update`);
     
     // First ensure the user is registered
+    let registerResult = false;
     if (userData) {
-      store.registerAttendee(conferenceId, userId, userData, isVisible === true);
+      registerResult = store.registerAttendee(conferenceId, userId, userData, isVisible === true);
+      console.log(`Registration result for ${userId}: ${registerResult ? 'success' : 'failed'}`);
     }
     
     // Update the visibility
-    const success = store.updateVisibility(conferenceId, userId, isVisible === true);
+    const updateResult = store.updateVisibility(conferenceId, userId, isVisible === true);
+    console.log(`Visibility update result for ${userId}: ${updateResult ? 'success' : 'failed'}`);
+    
+    // If update failed but registration worked, we're good
+    const success = updateResult || registerResult;
     
     if (!success) {
-      console.log('User not found in conference, registering now');
-      // Try to register the user
-      store.registerAttendee(conferenceId, userId, userData, isVisible === true);
+      console.log('Failed to update visibility, attempting fallback registration');
+      // Try explicit registration as fallback
+      if (userData) {
+        store.registerAttendee(conferenceId, userId, userData, isVisible === true);
+      }
     }
     
-    // Log the current state
-    console.log('Debug info:', store.getDebugInfo());
+    // Get current state after update
+    const allAttendees = Object.values(store.conferenceAttendees[conferenceId] || {});
+    const visibleAttendees = allAttendees.filter(a => a.isVisible === true);
+    
+    console.log(`After update: Conference ${conferenceId} has ${allAttendees.length} total attendees, ${visibleAttendees.length} visible`);
+    
+    // Debug log all attendees
+    allAttendees.forEach(attendee => {
+      console.log(`- Attendee: ${attendee.id}, name: ${attendee.profile?.name || 'unnamed'}, visible: ${attendee.isVisible}`);
+    });
 
     // Return success response
     return {
@@ -77,7 +108,9 @@ exports.handler = async function(event, context) {
           userId,
           conferenceId,
           isVisible: isVisible === true,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          attendeeCount: allAttendees.length,
+          visibleAttendeeCount: visibleAttendees.length
         }
       })
     };
