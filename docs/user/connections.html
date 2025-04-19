@@ -432,11 +432,41 @@
         // Initialize the page
         async function initializePage() {
             try {
+                console.log('Initializing page...');
+                
+                // Check if user is authenticated
+                const userData = localStorage.getItem('linkedInUser');
+                if (!userData) {
+                    console.error('No user data found, redirecting to auth page');
+                    window.location.href = 'auth.html';
+                    return;
+                }
+                
+                // Check if conference info is set
+                const conferenceId = localStorage.getItem('conferenceId');
+                if (!conferenceId) {
+                    console.error('No conference ID found');
+                    alert('Conference ID is missing. Please try again with a valid conference link.');
+                    return;
+                }
+                
                 // Display user profile first
                 displayUserProfile();
                 
                 // Hide loading overlay immediately
                 document.getElementById('loadingOverlay').style.display = 'none';
+                
+                // Pre-register to ensure we're in the system
+                try {
+                    console.log('Pre-registering for conference...');
+                    const registerResult = await registerForConference();
+                    console.log('Pre-registration result:', registerResult);
+                    
+                    // Wait a bit for registration to process
+                    await new Promise(resolve => setTimeout(resolve, 800));
+                } catch (regError) {
+                    console.error('Error during pre-registration:', regError);
+                }
                 
                 // Generate and display connections
                 const connections = await generateConnections();
@@ -445,8 +475,14 @@
                 // Initialize visibility
                 initializeVisibility();
                 
-                // Set up auto-refresh every 30 seconds if enabled
-                startAutoRefresh();
+                // Get server debug info
+                const debugInfo = await fetchDebugInfo();
+                updateDebugPanel(debugInfo);
+                
+                // Set up auto-refresh
+                startAutoRefresh(30000); // Every 30 seconds
+                
+                console.log('Page initialization complete.');
             } catch (error) {
                 console.error('Error initializing page:', error);
                 document.getElementById('loadingOverlay').style.display = 'none';
@@ -454,27 +490,34 @@
             }
         }
 
-        // Start automatic refresh
-        function startAutoRefresh(intervalMs = 60000) { // Changed to 60 seconds
+        // Start automatic refresh - but use a longer interval
+        function startAutoRefresh(intervalMs = 30000) { // Every 30 seconds
             // Clear any existing interval
             if (autoRefreshInterval) {
                 clearInterval(autoRefreshInterval);
             }
             
-            // Set new interval - disabled for initial debugging
-            // For now, let's rely on manual refresh to reduce complexity
-            console.log('Auto-refresh is disabled for debugging. Use manual refresh.');
-            /*
+            // Set new interval for auto-refresh
+            console.log(`Starting auto-refresh with interval: ${intervalMs}ms`);
+            
             autoRefreshInterval = setInterval(async () => {
                 console.log('Auto-refreshing connections...');
                 try {
+                    // Silently refresh without showing loading overlay
                     const connections = await generateConnections(true);
+                    
+                    // Also update debug info
+                    const debugInfo = await fetchDebugInfo();
+                    updateDebugPanel(debugInfo);
+                    
+                    // If connections are different from current list, update the display
                     const currentCount = allConnections ? allConnections.length : 0;
                     
                     if (connections.length !== currentCount) {
                         console.log(`Updating connections: was ${currentCount}, now ${connections.length}`);
                         displayConnections(connections);
                         
+                        // Show a small notification that new attendees were found
                         if (connections.length > currentCount) {
                             const newCount = connections.length - currentCount;
                             const refreshIndicator = document.createElement('div');
@@ -493,14 +536,15 @@
                             refreshIndicator.textContent = `Found ${newCount} new attendee${newCount === 1 ? '' : 's'}`;
                             document.body.appendChild(refreshIndicator);
                             
+                            // Remove the indicator after animation
                             setTimeout(() => refreshIndicator.remove(), 3000);
                         }
                     }
                 } catch (error) {
                     console.warn('Auto-refresh error:', error);
+                    // Don't show error to user, just log it
                 }
             }, intervalMs);
-            */
         }
 
         // Stop automatic refresh
@@ -808,7 +852,7 @@
             return item;
         }
         
-        // Handle refreshing connections
+        // Function to refresh connections
         async function refreshConnections() {
             try {
                 // Show loading overlay
@@ -828,28 +872,55 @@
                 `;
                 
                 // Register for conference to ensure we're registered
-                await registerForConference();
+                const registerResult = await registerForConference();
+                console.log('Registration result during refresh:', registerResult);
                 
-                // Generate and display connections with force refresh
+                // Add a short delay to ensure registration is processed
+                await new Promise(resolve => setTimeout(resolve, 800));
+                
+                // Generate and display connections
                 const connections = await generateConnections();
+                
+                // Request backend debug info
+                const debugInfo = await fetchDebugInfo();
+                updateDebugPanel(debugInfo);
                 
                 // If we get data back, display it
                 if (connections && connections.length > 0) {
                     console.log(`Refreshed ${connections.length} connections successfully`);
                     displayConnections(connections);
                 } else {
-                    // If we didn't get any data, show empty state with invitation option
-                    console.warn('No other attendees found for this conference');
-                    connectionsList.innerHTML = `
-                        <div class="empty-state">
-                            <i class="fas fa-users"></i>
-                            <p>You're the only attendee at this conference right now.</p>
-                            <p>Invite others to join this conference to connect with them here.</p>
-                            <button class="btn" onclick="showShareOptions()" style="margin-top: 15px;">
-                                <i class="fas fa-share-alt"></i> Share Conference Link
-                            </button>
-                        </div>
-                    `;
+                    // If we didn't get any data, but server reports attendees for this conference
+                    const hasServerAttendees = debugInfo && 
+                             debugInfo.debugInfo && 
+                             debugInfo.debugInfo[localStorage.getItem('conferenceId')] &&
+                             debugInfo.debugInfo[localStorage.getItem('conferenceId')].visibleAttendees > 0;
+                    
+                    if (hasServerAttendees) {
+                        connectionsList.innerHTML = `
+                            <div class="empty-state">
+                                <i class="fas fa-exclamation-circle" style="color: #ffc107;"></i>
+                                <p>Server has ${debugInfo.debugInfo[localStorage.getItem('conferenceId')].visibleAttendees} visible attendees, but none were returned.</p>
+                                <p>This might be a server-side issue. Try again in a moment.</p>
+                                <button class="btn" onclick="refreshConnections()">
+                                    <i class="fas fa-sync-alt"></i> Try Again
+                                </button>
+                            </div>
+                        `;
+                    } else {
+                        // If we didn't get any data, show empty state with invitation option
+                        console.warn('No other attendees found for this conference');
+                        connectionsList.innerHTML = `
+                            <div class="empty-state">
+                                <i class="fas fa-users"></i>
+                                <p>You're the only attendee at this conference right now.</p>
+                                <p>Invite others to join this conference to connect with them here.</p>
+                                <button class="btn" onclick="showShareOptions()" style="margin-top: 15px;">
+                                    <i class="fas fa-share-alt"></i> Share Conference Link
+                                </button>
+                            </div>
+                        `;
+                    }
                 }
                 
                 // Hide loading overlay
@@ -896,6 +967,77 @@
             }
         }
         
+        // Function to fetch debug info from the server
+        async function fetchDebugInfo() {
+            try {
+                const debugUrl = '/.netlify/functions/debug-store?action=get_debug_info';
+                const response = await fetch(debugUrl, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Cache-Control': 'no-cache, no-store' 
+                    }
+                });
+                
+                if (!response.ok) {
+                    console.error('Error fetching debug info:', response.status, response.statusText);
+                    return null;
+                }
+                
+                const data = await response.json();
+                console.log('Debug info:', data);
+                return data;
+            } catch (error) {
+                console.error('Error fetching debug info:', error);
+                return null;
+            }
+        }
+
+        // Function to update the debug panel with info
+        function updateDebugPanel(debugInfo) {
+            const debugPanel = document.getElementById('debug-info');
+            if (!debugPanel) return;
+            
+            try {
+                // Get info about the current user and conference
+                const userData = JSON.parse(localStorage.getItem('linkedInUser') || '{}');
+                const conferenceId = localStorage.getItem('conferenceId') || 'N/A';
+                const conferenceName = localStorage.getItem('conferenceName') || 'N/A';
+                const userVisible = localStorage.getItem('userVisibility') !== 'false';
+                
+                // Build debug info string
+                let debugStr = `Conference ID: ${conferenceId}\n`;
+                debugStr += `Conference Name: ${conferenceName}\n`;
+                debugStr += `Current User: ${userData.name || userData.id || 'Unknown'} (${userData.id || 'No ID'})\n`;
+                debugStr += `User Visibility: ${userVisible ? 'Visible' : 'Hidden'}\n\n`;
+                
+                // Add server info if available
+                if (debugInfo && debugInfo.debugInfo) {
+                    debugStr += 'Server Data:\n';
+                    
+                    if (debugInfo.debugInfo[conferenceId]) {
+                        const confInfo = debugInfo.debugInfo[conferenceId];
+                        debugStr += `- Total Attendees: ${confInfo.totalAttendees}\n`;
+                        debugStr += `- Visible Attendees: ${confInfo.visibleAttendees}\n`;
+                        
+                        if (confInfo.attendeeIds && confInfo.attendeeIds.length > 0) {
+                            debugStr += `- Attendee IDs: ${JSON.stringify(confInfo.attendeeIds)}\n`;
+                            debugStr += `- Current User is in list: ${confInfo.attendeeIds.includes(userData.id) ? 'Yes' : 'No'}\n`;
+                        }
+                    } else {
+                        debugStr += '- Conference not found on server\n';
+                    }
+                } else {
+                    debugStr += 'Server Data: Unable to fetch\n';
+                }
+                
+                // Update the debug panel
+                debugPanel.textContent = debugStr;
+            } catch (error) {
+                console.error('Error updating debug panel:', error);
+                debugPanel.textContent = `Error: ${error.message}`;
+            }
+        }
+
         // Search functionality
         document.getElementById('searchInput').addEventListener('input', function() {
             const searchValue = this.value.toLowerCase();
