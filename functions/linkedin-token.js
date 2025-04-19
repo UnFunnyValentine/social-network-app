@@ -30,8 +30,8 @@ exports.handler = async function(event, context) {
 
     console.log('Token response received');
     
-    // Get the user profile using the basic profile endpoint for r_basicprofile scope
-    const profileResponse = await axios.get('https://api.linkedin.com/v2/basicProfile', {
+    // Get the user profile using the correct endpoint for r_basicprofile scope
+    const profileResponse = await axios.get('https://api.linkedin.com/v2/me', {
       headers: {
         'Authorization': `Bearer ${tokenResponse.data.access_token}`
       }
