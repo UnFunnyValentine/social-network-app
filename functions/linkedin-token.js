@@ -30,8 +30,8 @@ exports.handler = async function(event, context) {
 
     console.log('Token response received');
     
-    // Get the user profile using the correct endpoint for r_basicprofile scope
-    const profileResponse = await axios.get('https://api.linkedin.com/v2/me', {
+    // Get the user profile using the correct endpoint with projection parameters
+    const profileResponse = await axios.get('https://api.linkedin.com/v2/me?projection=(id,localizedFirstName,localizedLastName,profilePicture(displayImage~:playableStreams))', {
       headers: {
         'Authorization': `Bearer ${tokenResponse.data.access_token}`
       }
@@ -52,35 +52,16 @@ exports.handler = async function(event, context) {
       console.log('Email successfully retrieved');
     } catch (emailError) {
       console.log('Email retrieval error:', emailError.message);
-      
-      // Try to extract email from id_token if available (OpenID Connect flow)
-      if (tokenResponse.data.id_token) {
-        try {
-          const base64Url = tokenResponse.data.id_token.split('.')[1];
-          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-          const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-          }).join(''));
-          
-          const claims = JSON.parse(jsonPayload);
-          emailData = claims.email || null;
-          console.log('Email extracted from ID token');
-        } catch (tokenError) {
-          console.log('Failed to extract email from token:', tokenError.message);
-        }
-      }
-      
       // Continue without email if not available
     }
 
-    // Create a standardized user profile object
+    // Create a simplified user profile object with only necessary fields
     const userData = {
       id: profileResponse.data.id,
-      firstName: profileResponse.data.localizedFirstName || profileResponse.data.firstName,
-      lastName: profileResponse.data.localizedLastName || profileResponse.data.lastName,
+      firstName: profileResponse.data.localizedFirstName || '',
+      lastName: profileResponse.data.localizedLastName || '',
       email: emailData || 'Email not available',
-      // Include other profile data
-      ...profileResponse.data
+      profilePicture: profileResponse.data.profilePicture?.['displayImage~']?.elements?.[0]?.identifiers?.[0]?.identifier || null
     };
 
     // Return the combined data
