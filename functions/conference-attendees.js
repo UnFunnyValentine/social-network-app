@@ -105,22 +105,42 @@ exports.handler = async function(event, context) {
       const allAttendees = Object.values(store.conferenceAttendees[conferenceId]);
       console.log(`Found ${allAttendees.length} total attendees in conference ${conferenceId}`);
       
-      // Filter out non-visible attendees and current user
+      // FIXED: Special handling for currentUserId to ensure it's properly formatted
+      let normalizedCurrentUserId = currentUserId;
+      
+      // Log the exact current user ID for debugging
+      console.log(`Current user ID (original): "${currentUserId}"`);
+      
+      // Fix the issue where current user ID might be different formats
+      // Try different variations that might have been stored
+      const currentUserVariations = [
+        currentUserId,
+        currentUserId?.toLowerCase(),
+        currentUserId?.toUpperCase(),
+        currentUserId?.trim()
+      ];
+      
+      console.log('Current user ID variations tried:', currentUserVariations);
+      
+      // Filter out non-visible attendees and current user (with flexible matching)
       attendees = allAttendees.filter(attendee => {
-        // Skip current user
-        if (currentUserId && attendee.id === currentUserId) {
-          console.log(`Skipping current user: ${attendee.id}`);
+        // Only include visible attendees
+        if (attendee.isVisible !== true) {
+          console.log(`Skipping non-visible attendee: ${attendee.id} (visibility: ${attendee.isVisible})`);
           return false;
         }
         
-        // Only include visible attendees
-        if (attendee.isVisible !== true) {
-          console.log(`Skipping non-visible attendee: ${attendee.id}`);
+        // Skip current user with flexible matching
+        if (currentUserId && (
+            currentUserVariations.includes(attendee.id) || 
+            currentUserVariations.includes(attendee.profile?.id)
+        )) {
+          console.log(`Skipping current user: ${attendee.id} matches ${currentUserId}`);
           return false;
         }
         
         // Include this attendee
-        console.log(`Including attendee: ${attendee.id}`);
+        console.log(`Including attendee: ${attendee.id} (${attendee.profile?.name || 'unnamed'})`);
         return true;
       });
       
