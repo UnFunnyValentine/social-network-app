@@ -51,14 +51,13 @@ exports.handler = async function(event, context) {
     
     // Parse query parameters
     const params = event.queryStringParameters || {};
-    const action = params.action || '';
-    const conferenceId = params.conferenceId || '';
+    const action = params.action || 'unknown_action';
     
     // Special action to force-set conference data (for testing)
-    if (action === 'set_conference_data' && conferenceId && params.userId) {
+    if (action === 'set_conference_data' && params.conferenceId && params.userId) {
       // Create conference if it doesn't exist
-      if (!global.ALL_CONFERENCE_DATA[conferenceId]) {
-        global.ALL_CONFERENCE_DATA[conferenceId] = {};
+      if (!global.ALL_CONFERENCE_DATA[params.conferenceId]) {
+        global.ALL_CONFERENCE_DATA[params.conferenceId] = {};
       }
       
       // Create user profile
@@ -67,7 +66,7 @@ exports.handler = async function(event, context) {
       const isVisible = params.isVisible !== 'false'; // Default to visible
       
       // Add test user to the conference
-      global.ALL_CONFERENCE_DATA[conferenceId][userId] = {
+      global.ALL_CONFERENCE_DATA[params.conferenceId][userId] = {
         id: userId,
         profile: {
           id: userId,
@@ -94,7 +93,7 @@ exports.handler = async function(event, context) {
         body: JSON.stringify({
           action: 'set_conference_data',
           success: true,
-          conference: conferenceId,
+          conference: params.conferenceId,
           userId: userId,
           name: name,
           isVisible: isVisible,
@@ -105,30 +104,146 @@ exports.handler = async function(event, context) {
     
     let result = {};
     
+    // Perform the requested action
     switch (action) {
-      case 'get_attendees':
+      case 'get_debug_info':
+        // Get all debug info from the store
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            debugInfo: store.conferenceAttendees
+          })
+        };
+        
+      case 'get_conference_attendees':
         // Get attendees for a specific conference
+        const conferenceId = params.conferenceId;
         if (!conferenceId) {
           return {
             statusCode: 400,
             headers,
+            body: JSON.stringify({ error: 'conferenceId is required' })
+          };
+        }
+        
+        // Return the attendees for the specified conference
+        const attendees = store.conferenceAttendees[conferenceId] 
+          ? Object.values(store.conferenceAttendees[conferenceId]) 
+          : [];
+        
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            conferenceId,
+            attendees,
+            count: attendees.length
+          })
+        };
+        
+      case 'set_conference_data':
+        // Manual action to set a test attendee for a conference
+        const setConferenceId = params.conferenceId;
+        const userId = params.userId;
+        const userName = params.name || 'Test User';
+        
+        if (!setConferenceId || !userId) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'conferenceId and userId are required' })
+          };
+        }
+        
+        // Create a generic attendee object
+        const testAttendee = {
+          id: userId,
+          isVisible: true,
+          profile: {
+            id: userId,
+            name: userName,
+            title: 'Test Attendee',
+            company: 'Test Company',
+            profilePicture: `https://randomuser.me/api/portraits/people/${Math.floor(Math.random() * 100)}.jpg`
+          }
+        };
+        
+        // Add to the store
+        if (!store.conferenceAttendees[setConferenceId]) {
+          store.conferenceAttendees[setConferenceId] = {};
+        }
+        
+        store.conferenceAttendees[setConferenceId][userId] = testAttendee;
+        
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            success: true,
+            message: `Added user ${userId} to conference ${setConferenceId}`,
+            conferenceAttendees: store.conferenceAttendees[setConferenceId]
+          })
+        };
+
+      case 'cleanup_test_users':
+        // Clean up test users for a specific conference
+        const cleanupConferenceId = params.conferenceId;
+        if (!cleanupConferenceId) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'conferenceId is required' })
+          };
+        }
+        
+        // Check if conference exists
+        if (!store.conferenceAttendees[cleanupConferenceId]) {
+          return {
+            statusCode: 404,
+            headers,
             body: JSON.stringify({ 
-              error: 'Missing conferenceId parameter',
-              action
+              error: 'Conference not found',
+              conferenceId: cleanupConferenceId
             })
           };
         }
         
-        const attendees = store.getAttendees(conferenceId, params.currentUserId);
+        // Count attendees before cleanup
+        const beforeCount = Object.keys(store.conferenceAttendees[cleanupConferenceId]).length;
         
-        result = {
-          action: 'get_attendees',
-          conferenceId,
-          currentUserId: params.currentUserId,
-          attendees,
-          count: attendees.length
+        // Remove all test users (users with test in their ID)
+        let removedCount = 0;
+        const attendeeIds = Object.keys(store.conferenceAttendees[cleanupConferenceId]);
+        
+        for (const id of attendeeIds) {
+          // Check if this is a test user by looking for test-related patterns in the ID
+          if (id.includes('test') || 
+              id.match(/^test_/i) || 
+              id.match(/^linkedin_test/i) || 
+              id.match(/^oauth_test/i)) {
+            
+            // Remove this test user
+            delete store.conferenceAttendees[cleanupConferenceId][id];
+            removedCount++;
+          }
+        }
+        
+        // Count attendees after cleanup
+        const afterCount = Object.keys(store.conferenceAttendees[cleanupConferenceId]).length;
+        
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            success: true,
+            conferenceId: cleanupConferenceId,
+            before: beforeCount,
+            after: afterCount,
+            removed: removedCount,
+            message: `Removed ${removedCount} test users from conference ${cleanupConferenceId}`
+          })
         };
-        break;
         
       default:
         // Get debug info
