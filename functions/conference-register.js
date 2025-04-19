@@ -53,6 +53,10 @@ exports.handler = async function(event, context) {
       userData: userData ? `${userData.name || 'Unknown'} (${userId})` : 'None' 
     });
     
+    // Ensure the conference exists in our store
+    const exists = store.conferenceExists(conferenceId);
+    console.log(`Conference ${conferenceId} exists in store: ${exists}`);
+    
     // Register user with the conference using shared store
     const success = store.registerAttendee(conferenceId, userId, userData, isVisible !== false);
     
@@ -68,6 +72,9 @@ exports.handler = async function(event, context) {
       };
     }
     
+    // List all conferences for debug
+    console.log('All conferences in store:', Object.keys(store.conferenceAttendees));
+    
     // Get the current state of the conference
     const allAttendees = Object.values(store.conferenceAttendees[conferenceId] || {});
     const visibleAttendees = allAttendees.filter(a => a.isVisible === true);
@@ -75,7 +82,7 @@ exports.handler = async function(event, context) {
     // Log info about all attendees in this conference
     console.log(`Conference ${conferenceId} now has ${allAttendees.length} total attendees, ${visibleAttendees.length} visible`);
     allAttendees.forEach(attendee => {
-      console.log(`- Attendee: ${attendee.id}, name: ${attendee.profile.name || 'unnamed'}, visible: ${attendee.isVisible}`);
+      console.log(`- Attendee: ${attendee.id}, name: ${attendee.profile?.name || 'unnamed'}, visible: ${attendee.isVisible}`);
     });
     
     // Return success response with attendee info
