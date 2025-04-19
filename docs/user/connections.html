@@ -455,27 +455,26 @@
         }
 
         // Start automatic refresh
-        function startAutoRefresh(intervalMs = 30000) {
+        function startAutoRefresh(intervalMs = 60000) { // Changed to 60 seconds
             // Clear any existing interval
             if (autoRefreshInterval) {
                 clearInterval(autoRefreshInterval);
             }
             
-            // Set new interval
+            // Set new interval - disabled for initial debugging
+            // For now, let's rely on manual refresh to reduce complexity
+            console.log('Auto-refresh is disabled for debugging. Use manual refresh.');
+            /*
             autoRefreshInterval = setInterval(async () => {
                 console.log('Auto-refreshing connections...');
                 try {
-                    // Silently refresh without showing loading overlay
                     const connections = await generateConnections(true);
-                    
-                    // If connections are different from current list, update the display
                     const currentCount = allConnections ? allConnections.length : 0;
                     
                     if (connections.length !== currentCount) {
                         console.log(`Updating connections: was ${currentCount}, now ${connections.length}`);
                         displayConnections(connections);
                         
-                        // Show a small notification that new attendees were found
                         if (connections.length > currentCount) {
                             const newCount = connections.length - currentCount;
                             const refreshIndicator = document.createElement('div');
@@ -494,15 +493,14 @@
                             refreshIndicator.textContent = `Found ${newCount} new attendee${newCount === 1 ? '' : 's'}`;
                             document.body.appendChild(refreshIndicator);
                             
-                            // Remove the indicator after animation
                             setTimeout(() => refreshIndicator.remove(), 3000);
                         }
                     }
                 } catch (error) {
                     console.warn('Auto-refresh error:', error);
-                    // Don't show error to user, just log it
                 }
             }, intervalMs);
+            */
         }
 
         // Stop automatic refresh
@@ -532,7 +530,7 @@
                 // Wait a moment to ensure registration is processed
                 await new Promise(resolve => setTimeout(resolve, 500));
                 
-                // Set the correct API URL for Netlify functions with timestamp to avoid caching
+                // Set the correct API URL with timestamp to avoid caching
                 const timestamp = new Date().getTime();
                 const attendeesUrl = `/.netlify/functions/conference-attendees?conferenceId=${encodeURIComponent(conferenceId)}&currentUserId=${encodeURIComponent(currentUserId)}&_t=${timestamp}`;
                 
@@ -544,66 +542,26 @@
                 }
                 
                 // Make the API call with proper error handling
-                let attendeesResponse;
-                try {
-                    attendeesResponse = await fetch(attendeesUrl, {
-                        method: 'GET',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Cache-Control': 'no-cache, no-store'
-                        }
-                    });
-                } catch (fetchError) {
-                    console.error('Error fetching from primary URL:', fetchError);
-                    
-                    // Try alternative URL format
-                    const fallbackUrl = `/api/conference/${conferenceId}/attendees?currentUserId=${encodeURIComponent(currentUserId)}&_t=${timestamp}`;
-                    console.log('Trying fallback URL:', fallbackUrl);
-                    
-                    attendeesResponse = await fetch(fallbackUrl, {
-                        method: 'GET',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Cache-Control': 'no-cache, no-store'
-                        }
-                    });
-                }
+                const response = await fetch(attendeesUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Cache-Control': 'no-cache, no-store'
+                    }
+                });
                 
-                if (!attendeesResponse.ok) {
-                    throw new Error(`Failed to fetch conference attendees: ${attendeesResponse.status} ${attendeesResponse.statusText}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch conference attendees: ${response.status} ${response.statusText}`);
                 }
 
-                const attendeesData = await attendeesResponse.json();
+                const attendeesData = await response.json();
                 console.log('Conference attendees data:', JSON.stringify(attendeesData, null, 2));
                 
                 // Extract attendees from the response
-                let attendees = attendeesData.attendees || [];
+                const attendees = attendeesData.attendees || [];
+                console.log(`Received ${attendees.length} attendees from server`);
                 
-                // If the array is empty, try a direct refresh
-                if (attendees.length === 0) {
-                    console.log('No attendees found, trying a direct refresh...');
-                    
-                    // Try the refresh endpoint directly again
-                    const refreshUrl = `/.netlify/functions/conference-attendees?conferenceId=${encodeURIComponent(conferenceId)}&currentUserId=${encodeURIComponent(currentUserId)}&refresh=true&_t=${new Date().getTime()}`;
-                    try {
-                        const refreshResponse = await fetch(refreshUrl, {
-                            headers: {
-                                'Accept': 'application/json',
-                                'Cache-Control': 'no-cache, no-store'
-                            }
-                        });
-                        
-                        if (refreshResponse.ok) {
-                            const refreshData = await refreshResponse.json();
-                            attendees = refreshData.attendees || [];
-                            console.log('After refresh, found attendees:', attendees.length);
-                        }
-                    } catch (refreshError) {
-                        console.warn('Error during refresh attempt:', refreshError);
-                    }
-                }
-                
-                // If we have attendees, process them
+                // Process and return the attendees 
                 return processAttendees(attendees);
                 
             } catch (error) {
@@ -1274,11 +1232,30 @@
             
             try {
                 // First ensure user is registered for the conference
-                await registerForConference();
+                const registerResult = await registerForConference();
+                console.log('Register result before visibility update:', registerResult);
                 
                 // Then update visibility status
                 const visibilityUrl = '/.netlify/functions/conference-visibility';
                 console.log('Updating visibility at URL:', visibilityUrl);
+                
+                // Build complete user data similar to registration
+                let name = userData.name;
+                if (!name && (userData.firstName || userData.lastName)) {
+                    name = `${userData.firstName || ''} ${userData.lastName || ''}`.trim();
+                }
+                if (!name && (userData.given_name || userData.family_name)) {
+                    name = `${userData.given_name || ''} ${userData.family_name || ''}`.trim();
+                }
+                
+                // Normalize email
+                const email = userData.email || userData.emailAddress || 'email@example.com';
+                
+                // Normalize profile picture
+                let profilePicture = userData.profilePicture || userData.pictureUrl || userData.picture;
+                if (typeof profilePicture === 'object' && profilePicture?.['displayImage~']?.elements?.[0]?.identifiers?.[0]?.identifier) {
+                    profilePicture = profilePicture['displayImage~'].elements[0].identifiers[0].identifier;
+                }
                 
                 const visibilityData = {
                     userId,
@@ -1286,17 +1263,20 @@
                     isVisible,
                     userData: {
                         id: userId,
-                        name: userData.name || `${userData.firstName || ''} ${userData.lastName || ''}`.trim(),
-                        email: userData.email,
-                        profilePicture: userData.profilePicture,
-                        headline: userData.headline || ''
+                        name: name || 'Conference Attendee',
+                        email: email,
+                        profilePicture: profilePicture || '',
+                        headline: userData.headline || userData.title || '',
+                        company: userData.company || userData.currentPosition?.companyName || '',
+                        title: userData.title || userData.headline || ''
                     }
                 };
                 
                 const response = await fetch(visibilityUrl, {
                     method: 'PUT',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Cache-Control': 'no-cache, no-store'
                     },
                     body: JSON.stringify(visibilityData)
                 });
@@ -1304,30 +1284,11 @@
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('Visibility update error:', errorText);
-                    
-                    // Try using the alternative API URL format as fallback
-                    console.log('Trying alternative visibility URL format...');
-                    const fallbackUrl = '/api/conference/visibility';
-                    
-                    const fallbackResponse = await fetch(fallbackUrl, {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(visibilityData)
-                    });
-                    
-                    if (!fallbackResponse.ok) {
-                        const fallbackErrorText = await fallbackResponse.text();
-                        console.error('Fallback visibility error:', fallbackErrorText);
-                        throw new Error('Failed to update visibility');
-                    }
-                    
-                    console.log('Successfully updated visibility using fallback URL');
-                } else {
-                    console.log('Successfully updated visibility');
+                    throw new Error('Failed to update visibility');
                 }
 
+                console.log('Successfully updated visibility');
+                
                 status.textContent = isVisible ? 'Visible to Other Attendees' : 'Hidden from Other Attendees';
                 localStorage.setItem('userVisibility', isVisible.toString());
                 
