@@ -734,6 +734,11 @@
             // Clear existing connections
             connectionsList.innerHTML = '';
             
+            // Get debug data to show in the debug panel
+            fetchDebugInfo().then(debugInfo => {
+                updateDebugPanel(debugInfo);
+            });
+            
             // Add welcome message and conference context
             const welcomeMessage = document.createElement('div');
             welcomeMessage.className = 'conference-context';
@@ -794,9 +799,14 @@
                             <i class="fas fa-user-friends"></i>
                             <p>You're the only attendee at this conference right now.</p>
                             <p>Invite others to join this conference!</p>
-                            <button class="btn" onclick="showShareOptions()" style="margin-top: 15px;">
-                                <i class="fas fa-share-alt"></i> Share Conference Link
-                            </button>
+                            <div>
+                                <button class="btn" onclick="showShareOptions()" style="margin-top: 15px;">
+                                    <i class="fas fa-share-alt"></i> Share Conference Link
+                                </button>
+                                <button class="btn btn-outline" onclick="directSetTestData()" style="margin-top: 15px; margin-left: 10px;">
+                                    <i class="fas fa-bug"></i> Force Add Test User
+                                </button>
+                            </div>
                         </div>
                     `;
                 }
@@ -1754,6 +1764,38 @@ Last Updated: ${new Date().toLocaleTimeString()}
             if (window.currentShareDialog) {
                 document.body.removeChild(window.currentShareDialog);
                 window.currentShareDialog = null;
+            }
+        }
+
+        // Function to add a test user directly
+        async function directSetTestData() {
+            try {
+                const conferenceId = localStorage.getItem('conferenceId');
+                const currentUser = JSON.parse(localStorage.getItem('linkedInUser'));
+                
+                // Create a test user with a different ID
+                const testUserId = `test_user_${Date.now()}`;
+                const testName = `Test User ${new Date().toLocaleTimeString()}`;
+                
+                // Make a direct request to set the data
+                const url = `/.netlify/functions/debug-store?action=set_conference_data&conferenceId=${encodeURIComponent(conferenceId)}&userId=${encodeURIComponent(testUserId)}&name=${encodeURIComponent(testName)}`;
+                
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                console.log('Set test data result:', result);
+                
+                // Also add the current user to ensure they're visible too
+                const currentUserUrl = `/.netlify/functions/debug-store?action=set_conference_data&conferenceId=${encodeURIComponent(conferenceId)}&userId=${encodeURIComponent(currentUser.id)}&name=${encodeURIComponent(currentUser.name || 'Current User')}`;
+                
+                await fetch(currentUserUrl);
+                
+                // Refresh connections to show the new test user
+                refreshConnections();
+                
+            } catch (error) {
+                console.error('Error setting test data:', error);
+                alert('Failed to add test user: ' + error.message);
             }
         }
 
