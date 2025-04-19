@@ -2,7 +2,28 @@
   publish = "."
   functions = "functions"
 
+# Redirect API calls to the corresponding function
 [[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
+  from = "/api/conference/register"
+  to = "/.netlify/functions/conference-register"
   status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/conference/visibility"
+  to = "/.netlify/functions/conference-visibility"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/conference/:conferenceId/attendees"
+  to = "/.netlify/functions/conference-attendees?conferenceId=:conferenceId"
+  status = 200
+  query = { currentUserId = ":currentUserId" }
+  force = true
+
+[[redirects]]
+  from = "/api/debug/*"
+  to = "/.netlify/functions/debug-store"
+  status = 200
+  force = true
