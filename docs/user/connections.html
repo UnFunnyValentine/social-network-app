@@ -953,6 +953,151 @@
         document.head.appendChild(style);
 
         // Display user profile data
+        function displayUserProfile() {
+            // Get user data from localStorage
+            const userData = localStorage.getItem('linkedInUser');
+            if (!userData) {
+                // Redirect to auth page if no user data is found
+                window.location.href = 'auth.html';
+                return;
+            }
+            
+            try {
+                // Parse user data
+                const user = JSON.parse(userData);
+                
+                // Get conference info from localStorage
+                const conferenceId = localStorage.getItem('conferenceId') || 'default_conference';
+                const conferenceName = localStorage.getItem('conferenceName') || 'Sample Conference';
+                const conferenceLocation = localStorage.getItem('conferenceLocation') || 'Virtual Event';
+                
+                // Store as global variables
+                window.conferenceId = conferenceId;
+                window.conferenceName = conferenceName;
+                
+                // Update conference UI
+                document.getElementById('conference-name').textContent = conferenceName;
+                document.getElementById('conference-location').textContent = conferenceLocation;
+                
+                // Update user profile info with appropriate fallbacks
+                let profileName = user.name;
+                if (!profileName && (user.firstName || user.lastName)) {
+                    profileName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+                }
+                if (!profileName) {
+                    profileName = user.id || 'LinkedIn User';
+                }
+                
+                const profileEmail = user.email || 'Email not available';
+                const profileHeadline = user.headline || user.currentPosition?.title || 'LinkedIn User';
+                
+                // For the profile picture, try multiple possible paths
+                let profilePicture = user.profilePicture;
+                if (!profilePicture && user.pictureUrl) {
+                    profilePicture = user.pictureUrl;
+                }
+                if (!profilePicture && user.profilePicture?.['displayImage~']?.elements?.[0]?.identifiers?.[0]?.identifier) {
+                    profilePicture = user.profilePicture['displayImage~'].elements[0].identifiers[0].identifier;
+                }
+                if (!profilePicture) {
+                    profilePicture = 'https://randomuser.me/api/portraits/lego/1.jpg';
+                }
+                
+                // Display user profile on the page
+                updateProfileUI(profileName, profileEmail, profileHeadline, profilePicture);
+                
+                // Debug: Display storage information
+                displayStorageDebugInfo();
+                
+            } catch (error) {
+                console.error('Error parsing user profile:', error);
+                
+                // Create fallback values
+                const fallbackName = 'Guest User';
+                const fallbackEmail = 'guest@example.com';
+                const fallbackHeadline = 'LinkedIn User';
+                const fallbackPicture = 'https://randomuser.me/api/portraits/lego/1.jpg';
+                
+                // Display fallback user profile
+                updateProfileUI(fallbackName, fallbackEmail, fallbackHeadline, fallbackPicture);
+            }
+        }
+
+        // Display debug information in the debug panel
+        function displayStorageDebugInfo() {
+            const debugElement = document.getElementById('debug-info');
+            if (!debugElement) return;
+            
+            try {
+                const userData = JSON.parse(localStorage.getItem('linkedInUser') || '{}');
+                const conferenceId = localStorage.getItem('conferenceId') || 'N/A';
+                const conferenceName = localStorage.getItem('conferenceName') || 'N/A';
+                const userVisible = localStorage.getItem('userVisibility') !== 'false';
+                
+                // Sanitize user data for display
+                const sanitizedUser = { ...userData };
+                if (sanitizedUser.profilePicture && sanitizedUser.profilePicture.length > 30) {
+                    sanitizedUser.profilePicture = sanitizedUser.profilePicture.substring(0, 30) + '...';
+                }
+                
+                const debugInfo = `
+LinkedInUser: ${JSON.stringify(sanitizedUser, null, 2)}
+ConferenceId: ${conferenceId}
+ConferenceName: ${conferenceName}
+UserVisibility: ${userVisible ? 'Visible' : 'Hidden'}
+Last Updated: ${new Date().toLocaleTimeString()}
+                `;
+                
+                debugElement.textContent = debugInfo;
+            } catch (error) {
+                console.error('Error updating debug info:', error);
+                debugElement.textContent = 'Error loading debug information';
+            }
+        }
+
+        // Function to refresh page
+        function refreshPage() {
+            window.location.reload();
+        }
+
+        // Function to clear all data
+        function clearAllData() {
+            localStorage.clear();
+            sessionStorage.clear();
+            alert('All local data cleared. The page will now reload.');
+            setTimeout(refreshPage, 500);
+        }
+
+        // Function to fix test data
+        function fixTestData() {
+            // Create a valid user profile
+            const testUser = {
+                id: `test_user_${Date.now()}`,
+                firstName: 'Test',
+                lastName: 'User',
+                name: 'Test User',
+                email: 'test@example.com',
+                profilePicture: 'https://randomuser.me/api/portraits/people/1.jpg',
+                headline: 'Software Developer'
+            };
+            
+            // Store the test data
+            localStorage.setItem('linkedInUser', JSON.stringify(testUser));
+            localStorage.setItem('isAuthenticated', 'true');
+            localStorage.setItem('authTime', new Date().toISOString());
+            
+            // Set conference data if not already present
+            if (!localStorage.getItem('conferenceId')) {
+                localStorage.setItem('conferenceId', 'conf_test');
+                localStorage.setItem('conferenceName', 'Test Conference');
+                localStorage.setItem('conferenceLocation', 'Test Location');
+            }
+            
+            alert('Test data has been set. Refreshing page...');
+            setTimeout(refreshPage, 500);
+        }
+
+        // Display user profile UI
         function updateProfileUI(profileName, profileEmail, profileHeadline, profileImageUrl) {
             document.getElementById('profile-name').textContent = profileName;
             document.getElementById('profile-email').textContent = profileEmail;
@@ -963,7 +1108,7 @@
             if (profileImg) {
                 profileImg.onerror = function() { 
                     console.warn('Profile image failed to load:', this.src);
-                    this.src = 'https://randomuser.me/api/portraits/men/1.jpg'; 
+                    this.src = 'https://randomuser.me/api/portraits/lego/1.jpg'; 
                 };
                 profileImg.src = profileImageUrl;
             }
