@@ -89,33 +89,37 @@ exports.handler = async function(event, context) {
       }
     }
     
-    // Get attendees from the shared store
-    const attendees = store.getAttendees(conferenceId, currentUserId);
+    // DIRECT IMPLEMENTATION: Get all attendees for this conference except current user
+    // This simplified approach ensures we're directly accessing the raw data
+    let attendees = [];
     
-    // Log full debug info to help diagnose issues
-    const debugInfo = store.getDebugInfo();
-    console.log('Server debug info:', JSON.stringify(debugInfo, null, 2));
-    
-    // Detailed logging about each attendee
-    if (attendees.length > 0) {
-      console.log(`Found ${attendees.length} attendees for conference ${conferenceId}:`);
+    if (store.conferenceAttendees[conferenceId]) {
+      // Get all attendees as an array
+      const allAttendees = Object.values(store.conferenceAttendees[conferenceId]);
+      console.log(`Found ${allAttendees.length} total attendees in conference ${conferenceId}`);
+      
+      // Filter out non-visible attendees and current user
+      attendees = allAttendees.filter(attendee => {
+        // Skip current user
+        if (currentUserId && attendee.id === currentUserId) {
+          return false;
+        }
+        
+        // Only include visible attendees
+        return attendee.isVisible === true;
+      });
+      
+      console.log(`Returning ${attendees.length} visible attendees (excluding current user)`);
+      
+      // Log each attendee for debugging
       attendees.forEach((attendee, index) => {
-        console.log(`Attendee #${index + 1}: ${attendee.profile.name || attendee.id}`);
+        console.log(`Attendee #${index + 1}: ${attendee.profile?.name || attendee.id} (visible: ${attendee.isVisible})`);
       });
     } else {
-      // Log info about why no attendees were returned
-      const allForConference = store.conferenceAttendees[conferenceId] || {};
-      const allAttendeeCount = Object.keys(allForConference).length;
-      console.log(`No attendees returned for ${conferenceId}. Total in db: ${allAttendeeCount}`);
-      
-      if (allAttendeeCount > 0) {
-        console.log('Existing attendees:');
-        Object.values(allForConference).forEach(a => {
-          console.log(`- ${a.id}: visibility=${a.isVisible}, name=${a.profile.name || 'unnamed'}`);
-        });
-      }
+      console.log(`No conference found with ID: ${conferenceId}`);
     }
 
+    // Return the filtered attendees
     return {
       statusCode: 200,
       headers,
@@ -123,7 +127,7 @@ exports.handler = async function(event, context) {
         conferenceId,
         attendees,
         totalCount: attendees.length,
-        timestamp: new Date().toISOString() // Add timestamp to help debug caching issues
+        timestamp: new Date().toISOString()
       })
     };
   } catch (error) {
