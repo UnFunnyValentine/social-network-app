@@ -1,6 +1,9 @@
 // Conference registration function
 const axios = require('axios');
 
+// Import the shared store for conference data
+const store = require('./shared-store');
+
 exports.handler = async function(event, context) {
   // CORS headers for cross-origin requests
   const headers = {
@@ -43,31 +46,44 @@ exports.handler = async function(event, context) {
       };
     }
 
-    console.log('Registering user for conference:', { userId, conferenceId, isVisible });
+    console.log('Registering user for conference:', { 
+      userId, 
+      conferenceId, 
+      isVisible,
+      userData: userData ? `${userData.name || 'Unknown'} (${userId})` : 'None' 
+    });
     
-    // Store data in a database or external service
-    // For this example, we'll just simulate success
+    // Register user with the conference using shared store
+    const success = store.registerAttendee(conferenceId, userId, userData, isVisible !== false);
     
-    // In a real app, you would use a database or API call like:
-    // const response = await axios.post('https://your-api.com/register', data);
+    if (!success) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Failed to register user for conference',
+          userId,
+          conferenceId
+        })
+      };
+    }
+    
+    // Log the current state
+    console.log('Debug info:', store.getDebugInfo());
 
     // Return success response
-    const registrationData = {
-      id: `reg_${Date.now()}`,
-      userId,
-      conferenceId,
-      isVisible: isVisible !== false, // Default to visible if not specified
-      timestamp: new Date().toISOString(),
-      userData: userData || {}
-    };
-
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         status: 'success',
         message: 'User registered successfully',
-        data: registrationData
+        data: {
+          id: userId,
+          conferenceId,
+          isVisible: isVisible !== false,
+          timestamp: new Date().toISOString()
+        }
       })
     };
   } catch (error) {
