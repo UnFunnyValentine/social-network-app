@@ -50,6 +50,9 @@ const supabaseQueries = {
       }
     }
     
+    // Log the incoming linkedinUrl for debugging
+    console.log('Storing LinkedIn URL in database:', attendeeData.linkedinUrl);
+    
     // Prepare attendee data for Supabase (snake_case)
     const dbAttendee = {
       user_id: attendeeData.userId,
@@ -73,7 +76,13 @@ const supabaseQueries = {
       .select()
       .single();
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error upserting attendee:', error);
+      throw error;
+    }
+    
+    // Log the returned data to confirm the URL was stored
+    console.log('LinkedIn URL stored in database:', data.linkedin_url);
     
     // Convert back to camelCase for consistency with the rest of the app
     return {
@@ -117,12 +126,26 @@ const supabaseQueries = {
   },
   
   getConferenceAttendees: async (conferenceId) => {
+    console.log(`Getting attendees for conference: ${conferenceId}`);
+    
     const { data, error } = await supabase
       .from('attendees')
       .select('*')
       .eq('conference_id', conferenceId);
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error fetching attendees:', error);
+      throw error;
+    }
+    
+    console.log(`Found ${data?.length || 0} attendees, checking LinkedIn URLs...`);
+    
+    // Log LinkedIn URLs for debugging
+    if (data && data.length > 0) {
+      data.forEach(item => {
+        console.log(`Attendee ${item.name} (${item.user_id}) LinkedIn URL: ${item.linkedin_url}`);
+      });
+    }
     
     // Convert from snake_case to camelCase
     return data.map(item => ({
