@@ -646,8 +646,14 @@
                 headline: userData.headline || userData.title || '',
                 company: userData.company || userData.currentPosition?.companyName || '',
                 title: userData.title || userData.headline || '',
-                joinedAt: new Date().toISOString()
+                joinedAt: new Date().toISOString(),
+                // Use the LinkedIn URL directly from userData if it exists
+                linkedinUrl: userData.linkedinUrl || '',
+                // Include vanity name if it exists
+                vanityName: userData.vanityName || ''
             };
+            
+            console.log('Profile data includes LinkedIn URL:', profileData.linkedinUrl);
             
             // Always store locally for reliability
             storeAttendeeLocally(conferenceId, userId, profileData);
@@ -1515,7 +1521,11 @@
                         profilePicture: profilePicture || '',
                         headline: userData.headline || userData.title || '',
                         company: userData.company || userData.currentPosition?.companyName || '',
-                        title: userData.title || userData.headline || ''
+                        title: userData.title || userData.headline || '',
+                        // Include LinkedIn URL if available
+                        linkedinUrl: userData.linkedinUrl || '',
+                        // Include vanity name if available
+                        vanityName: userData.vanityName || ''
                     }
                 };
                 
