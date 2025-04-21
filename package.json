@@ -8,7 +8,8 @@
   },
   "dependencies": {
     "axios": "^1.6.0",
-    "faunadb": "2.11.1"
+    "faunadb": "2.11.1",
+    "@supabase/supabase-js": "^2.39.3"
   },
   "devDependencies": {
     "netlify-cli": "^17.0.0"
