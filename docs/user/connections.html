@@ -963,28 +963,38 @@
             }
         }
         
-        // Function to create connection item element
+        // Function to create connection item with better image handling
         const createConnectionItem = function(connection) {
             const item = document.createElement('div');
             item.className = 'connection-item';
             
-            // Create image element with error handling and Brave browser compatibility
+            // Create an image element with a data URI fallback that shows initials
             const imgElement = document.createElement('img');
-            imgElement.crossOrigin = "anonymous"; // Add this for Brave browser
-            imgElement.referrerPolicy = "no-referrer"; // Add this for Brave browser
-            imgElement.src = connection.pictureUrl;
-            imgElement.alt = connection.name;
-            imgElement.className = 'connection-img';
+            const initials = connection.name ? connection.name.charAt(0).toUpperCase() : '?';
+            const initialsImage = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50"><circle cx="25" cy="25" r="25" fill="rgb(0, 119, 181)"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="white" font-size="20">${initials}</text></svg>`;
             
-            // Set up error handling for the image
+            // Set attributes to help with privacy browsers like Brave
+            imgElement.crossOrigin = "anonymous";
+            imgElement.referrerPolicy = "no-referrer";
+            imgElement.className = 'connection-img';
+            imgElement.alt = connection.name;
+            
+            // Set the src last, in case the URL is invalid
+            if (connection.pictureUrl) {
+                imgElement.src = connection.pictureUrl;
+            } else {
+                imgElement.src = initialsImage;
+            }
+            
+            // If the image fails to load, show initials instead
             imgElement.onerror = function() {
                 console.log('Profile image failed to load:', this.src);
                 this.onerror = null; // Prevent infinite loop
-                this.src = 'https://randomuser.me/api/portraits/men/1.jpg';
+                this.src = initialsImage;
             };
             
             // Use the profile URL from the connection object
-            const profileUrl = connection.profileUrl;
+            const profileUrl = connection.profileUrl || '';
             
             // Check if this is the current user
             const currentUserId = JSON.parse(localStorage.getItem('linkedInUser')).id;
@@ -1229,24 +1239,25 @@
                 return;
             }
             
-            // Find the connection in our list to get the full profile data
-            const connection = allConnections.find(c => c.id === attendeeId);
-            console.log('Connection data for profile button click:', connection);
-            
-            // If the profileUrl starts with "search:", it means we don't have a valid URL
-            // and need to search for the person instead
-            if (profileUrl.startsWith('search:')) {
+            // Default to LinkedIn search if we don't have a valid profile URL
+            if (!profileUrl || profileUrl === 'undefined' || profileUrl === 'null' || profileUrl === '') {
+                const connection = allConnections.find(c => c.id === attendeeId);
                 if (connection && connection.name) {
                     const searchName = encodeURIComponent(connection.name);
                     console.log(`Using LinkedIn search for ${connection.name}`);
-                    
-                    // For demonstration purposes, open LinkedIn search in a new tab
                     window.open(`https://www.linkedin.com/search/results/people/?keywords=${searchName}`, '_blank');
                 } else {
-                    // If we can't find the connection details, just go to LinkedIn
-                    console.log('No connection details found, redirecting to LinkedIn homepage');
+                    console.log('No connection details, redirecting to LinkedIn homepage');
                     window.open('https://www.linkedin.com/', '_blank');
                 }
+                return;
+            }
+            
+            // If the profileUrl starts with "search:", it means we need to search
+            if (profileUrl.startsWith('search:')) {
+                const searchTerm = profileUrl.replace('search:', '');
+                console.log(`Using search term: ${searchTerm}`);
+                window.open(`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(searchTerm)}`, '_blank');
                 return;
             }
             
@@ -1256,8 +1267,6 @@
             }
             
             console.log('Final profile URL:', profileUrl);
-            
-            // Open the URL in a new tab
             window.open(profileUrl, '_blank');
         }
         
