@@ -954,18 +954,6 @@
                     `;
                 }
             } else {
-                // Sort connections to put current user at the top
-                const currentUserId = JSON.parse(localStorage.getItem('linkedInUser')).id || JSON.parse(localStorage.getItem('linkedInUser')).sub;
-                
-                // Sort the connections array with current user first
-                filteredConnections.sort((a, b) => {
-                    // Always put current user first
-                    if (a.id === currentUserId) return -1;
-                    if (b.id === currentUserId) return 1;
-                    // Otherwise sort alphabetically by name
-                    return a.name.localeCompare(b.name);
-                });
-                
                 // Display all filtered connections
                 filteredConnections.forEach(connection => {
                     console.log('Displaying connection:', connection);
@@ -1243,7 +1231,7 @@
             // If this is the current user's profile
             if (currentUserId && attendeeId === currentUserId) {
                 // Try to get the user's own profile URL from LinkedIn data
-                let myProfileUrl = userData.publicProfileUrl || userData.profileUrl || userData.vanityName || userData.linkedinUrl;
+                let myProfileUrl = userData.publicProfileUrl || userData.vanityName || userData.profileUrl;
                 
                 if (myProfileUrl) {
                     if (!myProfileUrl.startsWith('http')) {
@@ -1306,7 +1294,7 @@
                     }
                 }
                 
-                // If we have a name, use it for search only as last resort
+                // If we have a name, use it for search
                 if (connection.name) {
                     console.log('No valid profile URL found, searching for:', connection.name);
                     window.open(`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(connection.name)}`, '_blank');
@@ -1975,7 +1963,7 @@ Last Updated: ${new Date().toLocaleTimeString()}
                         title: attendee.profile.headline || attendee.profile.title || '',
                         company: attendee.profile.company || '',
                         pictureUrl: attendee.profile.profilePicture || attendee.profile.pictureUrl || 'https://randomuser.me/api/portraits/lego/1.jpg',
-                        profileUrl: attendee.profile.linkedinUrl || attendee.profile.publicProfileUrl || attendee.profile.profileUrl || '',
+                        profileUrl: attendee.profile.profileUrl || 'https://www.linkedin.com/',
                         lastActive: Math.floor((Date.now() - new Date(attendee.lastActive || Date.now()).getTime()) / 60000),
                         isCurrentUser: currentUserId && (attendee.id === currentUserId || attendee.profile.id === currentUserId)
                     };
@@ -1988,7 +1976,7 @@ Last Updated: ${new Date().toLocaleTimeString()}
                     title: attendee.title || attendee.role || '',
                     company: attendee.company || '',
                     pictureUrl: attendee.pictureUrl || attendee.profilePicture || 'https://randomuser.me/api/portraits/lego/1.jpg',
-                    profileUrl: attendee.profileUrl || attendee.linkedinUrl || attendee.publicProfileUrl || '',
+                    profileUrl: attendee.profileUrl || attendee.linkedinUrl || 'https://www.linkedin.com/',
                     lastActive: typeof attendee.lastActive === 'number' ? attendee.lastActive : 
                         Math.floor((Date.now() - new Date(attendee.lastActive || Date.now()).getTime()) / 60000),
                     isCurrentUser: currentUserId && (attendee.id === currentUserId || attendee.userId === currentUserId)
