@@ -30,7 +30,7 @@ exports.handler = async (event, context) => {
   try {
     // Parse the incoming request body
     const data = JSON.parse(event.body);
-    const { userId, conferenceId, isVisible } = data;
+    const { userId, conferenceId, isVisible, userData } = data;
     
     if (!userId || !conferenceId) {
       return {
@@ -40,33 +40,72 @@ exports.handler = async (event, context) => {
       };
     }
     
-    // Update visibility in Supabase
-    const result = await supabaseQueries.updateAttendeeVisibility(userId, conferenceId, isVisible);
+    console.log('Updating visibility with userData:', userData);
     
-    if (!result) {
+    // If userData is provided, we can also update the LinkedIn URL
+    if (userData) {
+      console.log('Using userData to update attendee record, including LinkedIn URL');
+      
+      // Extract LinkedIn URL if available
+      const linkedinUrl = userData.linkedinUrl || '';
+      console.log('LinkedIn URL for update:', linkedinUrl);
+      
+      // Register/Update the attendee with the provided data
+      const registerData = {
+        userId,
+        conferenceId,
+        isVisible,
+        name: userData.name || 'Conference Attendee',
+        profilePicture: userData.profilePicture || '',
+        role: userData.headline || userData.title || 'Conference Attendee',
+        linkedinUrl,
+        joinedAt: userData.joinedAt || new Date().toISOString()
+      };
+      
+      // Use the registerAttendee function to do an upsert with the updated data
+      const result = await supabaseQueries.registerAttendee(registerData);
+      
       return {
-        statusCode: 404,
+        statusCode: 200,
         headers,
         body: JSON.stringify({ 
-          error: 'Attendee not found',
-          message: 'The attendee must register for the conference first'
+          success: true, 
+          message: `User data and visibility updated to ${isVisible ? 'visible' : 'hidden'}`,
+          data: result.data
+        })
+      };
+    } else {
+      // If no userData, just update visibility
+      console.log('No userData provided, only updating visibility');
+      
+      // Update visibility in Supabase
+      const result = await supabaseQueries.updateAttendeeVisibility(userId, conferenceId, isVisible);
+      
+      if (!result) {
+        return {
+          statusCode: 404,
+          headers,
+          body: JSON.stringify({ 
+            error: 'Attendee not found',
+            message: 'The attendee must register for the conference first'
+          })
+        };
+      }
+      
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ 
+          success: true, 
+          message: `Visibility updated to ${isVisible ? 'visible' : 'hidden'}`,
+          data: {
+            userId,
+            conferenceId,
+            isVisible
+          }
         })
       };
     }
-    
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ 
-        success: true, 
-        message: `Visibility updated to ${isVisible ? 'visible' : 'hidden'}`,
-        data: {
-          userId,
-          conferenceId,
-          isVisible
-        }
-      })
-    };
   } catch (error) {
     console.error('Visibility update error:', error);
     
