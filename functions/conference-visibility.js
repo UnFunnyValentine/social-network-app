@@ -1,5 +1,5 @@
 // Conference visibility update function
-const faunaQueries = require('./fauna-db');
+const supabaseQueries = require('./supabase-db');
 
 exports.handler = async (event, context) => {
   // Set up CORS headers
@@ -40,8 +40,8 @@ exports.handler = async (event, context) => {
       };
     }
     
-    // Update visibility in FaunaDB
-    const result = await faunaQueries.updateAttendeeVisibility(userId, conferenceId, isVisible);
+    // Update visibility in Supabase
+    const result = await supabaseQueries.updateAttendeeVisibility(userId, conferenceId, isVisible);
     
     if (!result) {
       return {
