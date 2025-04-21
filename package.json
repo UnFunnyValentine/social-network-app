@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "axios": "^1.6.0",
-    "faunadb": "^2.14.2"
+    "faunadb": "2.11.1"
   },
   "devDependencies": {
     "netlify-cli": "^17.0.0"
