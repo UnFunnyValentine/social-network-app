@@ -1241,25 +1241,49 @@
             }
             
             try {
+                // Get connection details for better search
+                const connection = allConnections.find(c => c.id === attendeeId);
+                const userName = connection ? connection.name : '';
+                const userCompany = connection ? connection.company : '';
+                const userTitle = connection ? connection.title : '';
+                
                 // Handle the URL based on its format
                 if (profileUrl.startsWith('search:')) {
                     // Extract the ID for search
                     const searchId = profileUrl.replace('search:', '');
                     console.log(`Using search fallback with ID: ${searchId}`);
                     
-                    // Try to get a better name for searching
-                    const connection = allConnections.find(c => c.id === attendeeId);
-                    const searchTerm = connection ? connection.name : searchId;
+                    // Create a better search query using name, company and title if available
+                    let searchQuery = '';
                     
-                    // Search by name and ID via the LinkedIn search page
-                    window.open(`https://www.linkedin.com/search/results/all/?keywords=${encodeURIComponent(searchTerm)}`, '_blank');
+                    if (userName) {
+                        searchQuery = userName;
+                        if (userCompany) {
+                            searchQuery += ` ${userCompany}`;
+                        }
+                        if (userTitle) {
+                            searchQuery += ` ${userTitle}`;
+                        }
+                    } else if (searchId && searchId !== 'unknown') {
+                        searchQuery = searchId;
+                    } else {
+                        searchQuery = 'Conference attendee';
+                    }
+                    
+                    // Search by name and other details via the LinkedIn search page
+                    const finalSearchUrl = `https://www.linkedin.com/search/results/all/?keywords=${encodeURIComponent(searchQuery)}`;
+                    console.log(`Opening search URL: ${finalSearchUrl}`);
+                    window.open(finalSearchUrl, '_blank');
                 } else if (profileUrl.includes('linkedin.com')) {
                     // Clean any malformed LinkedIn URLs
                     let cleanUrl = profileUrl;
                     
+                    // Remove any @ symbols or other invalid characters
+                    cleanUrl = cleanUrl.replace(/^[@]+/, '').replace(/[@#$%^&*()]+/g, '');
+                    
                     // Handle LinkedIn URLs with missing https://
-                    if (!profileUrl.startsWith('http')) {
-                        cleanUrl = 'https://' + profileUrl.replace(/^\/\//, '');
+                    if (!cleanUrl.startsWith('http')) {
+                        cleanUrl = 'https://' + cleanUrl.replace(/^\/\//, '');
                     }
                     
                     // Direct LinkedIn URL - open it directly
@@ -1267,13 +1291,25 @@
                     window.open(cleanUrl, '_blank');
                 } else if (profileUrl.startsWith('http')) {
                     // Other URL format but still a valid URL
-                    console.log(`Opening non-LinkedIn URL: ${profileUrl}`);
-                    window.open(profileUrl, '_blank');
+                    // Clean it first
+                    const cleanUrl = profileUrl.replace(/[@#$%^&*()]+/g, '');
+                    console.log(`Opening non-LinkedIn URL: ${cleanUrl}`);
+                    window.open(cleanUrl, '_blank');
                 } else {
                     // If it looks like a LinkedIn username/ID but not a full URL
                     const cleanId = profileUrl.replace(/[^a-zA-Z0-9_-]/g, '');
-                    console.log(`Converting possible LinkedIn ID to URL: ${cleanId}`);
-                    window.open(`https://www.linkedin.com/in/${encodeURIComponent(cleanId)}`, '_blank');
+                    
+                    // If it looks like a system ID (all caps/numbers), use search instead
+                    if (cleanId.match(/^[A-Z0-9_]{8,}$/)) {
+                        // Use name-based search for system IDs
+                        const searchQuery = userName || cleanId;
+                        console.log(`Using search for system ID: ${cleanId}`);
+                        window.open(`https://www.linkedin.com/search/results/all/?keywords=${encodeURIComponent(searchQuery)}`, '_blank');
+                    } else {
+                        // Otherwise try the direct profile URL
+                        console.log(`Converting possible LinkedIn ID to URL: ${cleanId}`);
+                        window.open(`https://www.linkedin.com/in/${encodeURIComponent(cleanId)}`, '_blank');
+                    }
                 }
             } catch (error) {
                 console.error('Error opening profile URL:', error);
@@ -2007,10 +2043,10 @@ Last Updated: ${new Date().toLocaleTimeString()}
             }
             
             // 4. Check for vanity name that doesn't look like an internal ID
-            if (profile.vanityName && !profile.vanityName.match(/^[A-Z0-9]{8,12}$/i)) {
+            if (profile.vanityName && !profile.vanityName.match(/^[A-Z0-9_]{8,}$/i)) {
                 profileUrl = `https://www.linkedin.com/in/${profile.vanityName}`;
                 console.log(`Using vanity name: ${profileUrl}`);
-                return profileUrl;
+                return ensureValidLinkedInUrl(profileUrl);
             }
             
             // 5. Check for siteStandardProfileRequest URL (from LinkedIn API v1)
@@ -2030,16 +2066,26 @@ Last Updated: ${new Date().toLocaleTimeString()}
                 }
             }
             
-            // 7. Try to use the ID if it's not numeric (might be a vanity name)
+            // 7. Try to use the ID if it doesn't look like a system-generated ID
             const id = attendee.id || profile.id;
-            if (id && !id.match(/^[0-9]+$/)) {
-                profileUrl = `https://www.linkedin.com/in/${id}`;
-                console.log(`Constructing URL from non-numeric ID: ${profileUrl}`);
-                return profileUrl;
+            if (id) {
+                // If it looks like a system-generated ID (all caps/numbers, typically >7 chars), use search instead
+                if (id.match(/^[A-Z0-9_]{8,}$/)) {
+                    profileUrl = `search:${id}`;
+                    console.log(`Using search for system-generated ID: ${profileUrl}`);
+                    return profileUrl;
+                }
+                
+                // If it looks like a vanity name or username (has lowercase letters, reasonable length)
+                if (id.match(/^[a-zA-Z0-9_-]{5,30}$/) && /[a-z]/.test(id)) {
+                    profileUrl = `https://www.linkedin.com/in/${id}`;
+                    console.log(`Constructing URL from likely vanity name: ${profileUrl}`);
+                    return ensureValidLinkedInUrl(profileUrl);
+                }
             }
             
             // 8. Fall back to search by ID
-            profileUrl = `search:${id}`;
+            profileUrl = `search:${id || 'unknown'}`;
             console.log(`Using search fallback: ${profileUrl}`);
             return profileUrl;
         }
@@ -2048,19 +2094,53 @@ Last Updated: ${new Date().toLocaleTimeString()}
         function ensureValidLinkedInUrl(url) {
             if (!url) return `search:unknown`;
             
+            // Clean up the URL - remove any @ symbols or other invalid characters at the start
+            url = url.replace(/^[@]+/, '');
+            
             // Return as-is if it's already a search format
             if (url.startsWith('search:')) return url;
             
-            // If it's a valid URL with linkedin.com, return as-is
-            if (url.includes('linkedin.com')) return url;
+            // If it's a valid URL with linkedin.com, return as-is but ensure it starts with https://
+            if (url.includes('linkedin.com')) {
+                // Remove any invalid characters
+                url = url.replace(/[@#$%^&*()]+/g, '');
+                
+                // Ensure it starts with https://
+                if (!url.startsWith('http')) {
+                    url = 'https://' + url.replace(/^\/\//, '');
+                }
+                return url;
+            }
             
-            // If it looks like just a username/ID, make it a proper LinkedIn URL
-            if (!url.includes('://') && !url.startsWith('/')) {
+            // If it looks like a LinkedIn ID but not a full URL
+            if (url.match(/^[a-zA-Z0-9-]{5,30}$/)) {
+                // This looks like a LinkedIn ID, but we should check if it seems like a system ID
+                if (url.match(/^[A-Z0-9]{8,}$/)) {
+                    // This seems to be a system-generated ID, which may not work with the /in/ format
+                    // Better to use search in this case
+                    return `search:${url}`;
+                }
                 return `https://www.linkedin.com/in/${url}`;
             }
             
-            // If it's any other URL format, return as-is
-            if (url.startsWith('http')) return url;
+            // If it looks like just a username/ID with potential invalid chars, clean and make it a proper LinkedIn URL
+            if (!url.includes('://') && !url.startsWith('/')) {
+                // Clean up the ID to ensure it's valid for a URL
+                const cleanId = url.replace(/[^a-zA-Z0-9_-]/g, '');
+                
+                // If it still looks like an ID and not a system-generated one, use it
+                if (cleanId && !cleanId.match(/^[A-Z0-9]{8,}$/)) {
+                    return `https://www.linkedin.com/in/${cleanId}`;
+                } else {
+                    // Fall back to search for system-looking IDs
+                    return `search:${cleanId || url}`;
+                }
+            }
+            
+            // If it's any other URL format, ensure it's clean and return
+            if (url.startsWith('http')) {
+                return url.replace(/[@#$%^&*()]+/g, '');
+            }
             
             // Default to search if nothing else works
             return `search:${url}`;
