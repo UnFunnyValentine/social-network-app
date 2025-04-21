@@ -32,6 +32,7 @@ exports.handler = async function(event, context) {
     // IMPORTANT: We need to use the endpoints that match the scopes we have
     // With openid and profile scopes, we should use the userinfo endpoint
     let userData = {};
+    let linkedinUrl = ''; // Will store the user's LinkedIn profile URL
     
     try {
       // First try the OpenID Connect userinfo endpoint (works with openid, profile, email scopes)
@@ -54,6 +55,9 @@ exports.handler = async function(event, context) {
         locale: userinfoResponse.data.locale || 'en_US',
         headline: userinfoResponse.data.headline || 'LinkedIn User'
       };
+      
+      // Try to determine LinkedIn profile URL using multiple approaches
+      await determineLinkedInProfileUrl(accessToken, userData);
       
     } catch (userinfoError) {
       console.log('Userinfo endpoint error:', userinfoError.message);
@@ -106,6 +110,9 @@ exports.handler = async function(event, context) {
           console.log('Email retrieval error:', emailError.message);
         }
         
+        // Try to determine LinkedIn profile URL
+        await determineLinkedInProfileUrl(accessToken, userData);
+        
       } catch (profileError) {
         console.log('Profile endpoint error:', profileError.message);
         console.log('Profile error details:', profileError.response?.data);
@@ -118,7 +125,8 @@ exports.handler = async function(event, context) {
           name: 'LinkedIn User',
           email: 'email@example.com',
           profilePicture: null,
-          headline: 'LinkedIn User'
+          headline: 'LinkedIn User',
+          linkedinUrl: `search:fallback_${Date.now()}` // Fallback URL
         };
       }
     }
@@ -160,3 +168,109 @@ exports.handler = async function(event, context) {
     };
   }
 };
+
+/**
+ * Determines the best LinkedIn profile URL for a user and adds it to userData
+ * Attempts multiple approaches using LinkedIn API endpoints
+ */
+async function determineLinkedInProfileUrl(accessToken, userData) {
+  console.log('Attempting to determine LinkedIn profile URL for user:', userData.id);
+  
+  // Approach 1: Try to get vanity name from /v2/me endpoint
+  try {
+    console.log('Approach 1: Trying to get vanity name from /v2/me endpoint');
+    const meResponse = await axios.get('https://api.linkedin.com/v2/me?projection=(id,vanityName,publicProfileUrl)', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+    
+    console.log('ME endpoint response:', meResponse.data);
+    
+    // Check for vanity name that doesn't look like an internal ID
+    if (meResponse.data.vanityName && !meResponse.data.vanityName.match(/^[A-Z0-9]{8,12}$/i)) {
+      userData.linkedinUrl = `https://www.linkedin.com/in/${meResponse.data.vanityName}`;
+      userData.vanityName = meResponse.data.vanityName;
+      console.log('Found valid vanity name:', userData.linkedinUrl);
+      return;
+    }
+    
+    // Check for public profile URL
+    if (meResponse.data.publicProfileUrl && meResponse.data.publicProfileUrl.includes('/in/')) {
+      userData.linkedinUrl = meResponse.data.publicProfileUrl;
+      console.log('Found public profile URL:', userData.linkedinUrl);
+      return;
+    }
+  } catch (err) {
+    console.log('Error in Approach 1:', err.message);
+  }
+  
+  // Approach 2: Try to get profile URL from identity API
+  try {
+    console.log('Approach 2: Trying to get profile URL from identity API');
+    const identityResponse = await axios.get(`https://api.linkedin.com/v2/people/(id:${userData.id})`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+    
+    console.log('Identity API response:', identityResponse.data);
+    
+    // Check for public profile URL in this response
+    if (identityResponse.data.publicProfileUrl) {
+      userData.linkedinUrl = identityResponse.data.publicProfileUrl;
+      console.log('Found public profile URL from identity API:', userData.linkedinUrl);
+      return;
+    }
+    
+    // Check for siteStandardProfileRequest
+    if (identityResponse.data.siteStandardProfileRequest && identityResponse.data.siteStandardProfileRequest.url) {
+      userData.linkedinUrl = identityResponse.data.siteStandardProfileRequest.url;
+      console.log('Found siteStandardProfileRequest URL:', userData.linkedinUrl);
+      return;
+    }
+  } catch (err) {
+    console.log('Error in Approach 2:', err.message);
+  }
+  
+  // Approach 3: Try a different projection with the fields we need
+  try {
+    console.log('Approach 3: Trying different projection with the fields we need');
+    const projectionResponse = await axios.get('https://api.linkedin.com/v2/me?projection=(id,profilePicture,vanityName,publicProfileUrl)', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+    
+    console.log('Projection response:', projectionResponse.data);
+    
+    // Check again for vanity name
+    if (projectionResponse.data.vanityName && !projectionResponse.data.vanityName.match(/^[A-Z0-9]{8,12}$/i)) {
+      userData.linkedinUrl = `https://www.linkedin.com/in/${projectionResponse.data.vanityName}`;
+      userData.vanityName = projectionResponse.data.vanityName;
+      console.log('Found valid vanity name from projection:', userData.linkedinUrl);
+      return;
+    }
+    
+    // Check again for public profile URL
+    if (projectionResponse.data.publicProfileUrl && projectionResponse.data.publicProfileUrl.includes('/in/')) {
+      userData.linkedinUrl = projectionResponse.data.publicProfileUrl;
+      console.log('Found public profile URL from projection:', userData.linkedinUrl);
+      return;
+    }
+  } catch (err) {
+    console.log('Error in Approach 3:', err.message);
+  }
+  
+  // Fallback: If we couldn't get a proper URL, use search
+  console.log('All approaches failed, using search fallback');
+  
+  // Use name for search if available, otherwise ID
+  if (userData.name && userData.name.trim() !== '') {
+    userData.linkedinUrl = `search:${userData.name}`;
+    console.log('Using search with name:', userData.linkedinUrl);
+  } else {
+    userData.linkedinUrl = `search:${userData.id}`;
+    console.log('Using search with ID:', userData.linkedinUrl);
+  }
+}
