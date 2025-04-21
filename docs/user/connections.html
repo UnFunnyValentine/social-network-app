@@ -576,27 +576,6 @@
                 
                 console.log(`Merged ${mergedAttendees.length} total attendees`);
                 
-                // Create a test user if no other attendees for demo purposes
-                if (mergedAttendees.length === 0 || (mergedAttendees.length === 1 && mergedAttendees[0].id === currentUserId)) {
-                    const demoAttendee = {
-                        id: `demo_user_${Date.now()}`,
-                        isVisible: true,
-                        profile: {
-                            id: `demo_user_${Date.now()}`,
-                            name: "Example Attendee",
-                            title: "Software Engineer",
-                            company: "Example Company",
-                            profilePicture: "https://randomuser.me/api/portraits/people/22.jpg"
-                        }
-                    };
-                    
-                    console.log('Adding demo attendee for testing');
-                    mergedAttendees.push(demoAttendee);
-                    
-                    // Also store it locally
-                    storeAttendeeLocally(conferenceId, demoAttendee.id, demoAttendee.profile);
-                }
-                
                 // Process and return the attendees
                 return processAttendees(mergedAttendees);
                 
