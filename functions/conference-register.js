@@ -31,6 +31,26 @@ exports.handler = async (event, context) => {
       };
     }
     
+    // Extract LinkedIn profile URL with several fallbacks
+    let linkedinUrl = '';
+    
+    // Try all possible LinkedIn URL formats
+    if (userData.publicProfileUrl) {
+      linkedinUrl = userData.publicProfileUrl;
+    } else if (userData.profileUrl) {
+      linkedinUrl = userData.profileUrl;
+    } else if (userData.vanityName) {
+      linkedinUrl = `https://www.linkedin.com/in/${userData.vanityName}`;
+    } else if (userData.vanity) {
+      linkedinUrl = `https://www.linkedin.com/in/${userData.vanity}`;
+    } else if (userData.profileLink) {
+      linkedinUrl = userData.profileLink;
+    } else if (userData.linkedinUrl) {
+      linkedinUrl = userData.linkedinUrl;
+    } else if (userData.siteStandardProfileRequest?.url) {
+      linkedinUrl = userData.siteStandardProfileRequest.url;
+    }
+    
     // Format data for storage
     const attendeeData = {
       userId,
@@ -39,9 +59,11 @@ exports.handler = async (event, context) => {
       name: userData.name || `${userData.firstName || ''} ${userData.lastName || ''}`.trim(),
       profilePicture: userData.profilePicture || userData.pictureUrl || userData.picture || '',
       role: userData.headline || userData.title || 'Conference Attendee',
-      linkedinUrl: userData.profileUrl || '',
+      linkedinUrl: linkedinUrl,
       joinedAt: new Date().toISOString()
     };
+    
+    console.log('LinkedIn URL captured:', linkedinUrl);
     
     // Store in Supabase
     const result = await supabaseQueries.registerAttendee(attendeeData);
