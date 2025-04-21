@@ -1,5 +1,5 @@
 // Conference attendees function
-const faunaQueries = require('./fauna-db');
+const supabaseQueries = require('./supabase-db');
 
 exports.handler = async (event, context) => {
   // CORS headers for cross-origin requests
@@ -30,8 +30,8 @@ exports.handler = async (event, context) => {
       };
     }
     
-    // Get attendees from FaunaDB
-    const allAttendees = await faunaQueries.getConferenceAttendees(conferenceId);
+    // Get attendees from Supabase
+    const allAttendees = await supabaseQueries.getConferenceAttendees(conferenceId);
     
     // Filter out attendees who have set visibility to false
     // Current user should always see themselves
@@ -42,7 +42,7 @@ exports.handler = async (event, context) => {
     // Update last active time for current user if available
     if (currentUserId) {
       try {
-        await faunaQueries.updateLastActive(currentUserId, conferenceId);
+        await supabaseQueries.updateLastActive(currentUserId, conferenceId);
       } catch (updateError) {
         console.warn('Failed to update last active time:', updateError);
       }
