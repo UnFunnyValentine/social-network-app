@@ -1,9 +1,10 @@
 const faunadb = require('faunadb');
 const q = faunadb.query;
 
-// Initialize FaunaDB client with just the secret (remove apiVersion)
+// Initialize FaunaDB client with explicit API version
 const client = new faunadb.Client({
-  secret: process.env.FAUNA_SECRET
+  secret: process.env.FAUNA_SECRET,
+  apiVersion: '4'  // Explicitly set to version 4
 });
 
 // Helper functions for database operations
@@ -145,4 +146,4 @@ const faunaQueries = {
   }
 };
 
-module.exports = faunaQueries; 
+module.exports = faunaQueries;
