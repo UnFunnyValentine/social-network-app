@@ -964,12 +964,14 @@
         }
         
         // Function to create connection item element
-        function createConnectionItem(connection) {
+        const createConnectionItem = function(connection) {
             const item = document.createElement('div');
             item.className = 'connection-item';
             
-            // Create image element with error handling
+            // Create image element with error handling and Brave browser compatibility
             const imgElement = document.createElement('img');
+            imgElement.crossOrigin = "anonymous"; // Add this for Brave browser
+            imgElement.referrerPolicy = "no-referrer"; // Add this for Brave browser
             imgElement.src = connection.pictureUrl;
             imgElement.alt = connection.name;
             imgElement.className = 'connection-img';
@@ -983,7 +985,6 @@
             
             // Use the profile URL from the connection object
             const profileUrl = connection.profileUrl;
-            console.log(`Profile URL for ${connection.name}:`, profileUrl);
             
             // Check if this is the current user
             const currentUserId = JSON.parse(localStorage.getItem('linkedInUser')).id;
@@ -995,7 +996,6 @@
                         ${isCurrentUser ? '<span class="status-badge" style="background-color: #e3f2fd; color: #0d47a1;">You</span>' : 
                         '<span class="status-badge">Attending ' + conferenceName + '</span>'}
                     </h3>
-                    <p class="mutual">Last active ${connection.lastActive} minutes ago</p>
                 </div>
                 <div class="connection-actions">
                     <button class="btn btn-outline" onclick="viewProfile('${profileUrl}', '${connection.id}')">
@@ -1008,7 +1008,7 @@
             item.insertBefore(imgElement, item.firstChild);
             
             return item;
-        }
+        };
         
         // Function to refresh connections
         async function refreshConnections() {
