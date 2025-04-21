@@ -1221,7 +1221,7 @@
             console.log('Opening profile for attendee ID:', attendeeId);
             console.log('Profile URL from data:', profileUrl);
             
-            // Find the connection in our list to get the full profile data
+            // Find the connection in our list
             const connection = allConnections.find(c => c.id === attendeeId);
             
             // Get the current user data
@@ -1230,80 +1230,37 @@
             
             // If this is the current user's profile
             if (currentUserId && attendeeId === currentUserId) {
-                // Try to get the user's own profile URL from LinkedIn data
-                let myProfileUrl = userData.publicProfileUrl || userData.vanityName || userData.profileUrl;
+                console.log('Opening user\'s own profile on LinkedIn feed');
+                window.open('https://www.linkedin.com/feed/', '_blank');
+                return;
+            }
+            
+            // Handle search URLs (our fallback mechanism)
+            if (profileUrl && profileUrl.startsWith('search:')) {
+                const searchId = profileUrl.replace('search:', '');
+                console.log(`Profile URL is search format for ID: ${searchId}`);
                 
-                if (myProfileUrl) {
-                    if (!myProfileUrl.startsWith('http')) {
-                        myProfileUrl = 'https://www.linkedin.com/in/' + myProfileUrl.replace(/^\/in\//, '');
-                    }
-                    console.log('Opening your own LinkedIn profile:', myProfileUrl);
-                    window.open(myProfileUrl, '_blank');
+                // Use name for search if available
+                if (connection && connection.name) {
+                    console.log(`Searching for attendee by name: ${connection.name}`);
+                    window.open(`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(connection.name)}`, '_blank');
                 } else {
-                    console.log('No profile URL found for current user, opening LinkedIn feed');
-                    window.open('https://www.linkedin.com/feed/', '_blank');
+                    // Generic LinkedIn search as last resort
+                    console.log('No name available, going to LinkedIn homepage');
+                    window.open('https://www.linkedin.com/', '_blank');
                 }
                 return;
             }
             
-            // For other users, try to use their stored profile URL
-            if (profileUrl && profileUrl !== 'undefined' && profileUrl !== 'null' && profileUrl !== '') {
-                // Format the URL properly if needed
-                if (profileUrl.includes('linkedin.com')) {
-                    // It's already a LinkedIn URL, just make sure it starts with https
-                    const formattedUrl = profileUrl.startsWith('http') 
-                        ? profileUrl 
-                        : 'https://' + profileUrl.replace(/^\/\//, '');
-                    
-                    console.log('Opening LinkedIn profile URL:', formattedUrl);
-                    window.open(formattedUrl, '_blank');
-                    return;
-                }
-                
-                // If it's just a username/vanity name without the domain
-                if (profileUrl.match(/^[a-zA-Z0-9-]+$/)) {
-                    const linkedinUrl = 'https://www.linkedin.com/in/' + profileUrl;
-                    console.log('Opening formatted LinkedIn profile URL:', linkedinUrl);
-                    window.open(linkedinUrl, '_blank');
-                    return;
-                }
+            // For normal profile URLs
+            if (profileUrl) {
+                console.log('Opening LinkedIn profile URL:', profileUrl);
+                window.open(profileUrl, '_blank');
+                return;
             }
             
-            // If we still don't have a valid URL but have connection data, check for IDs in the connection
-            if (connection) {
-                // Try to get the profileUrl from connection properties
-                const possibleUrls = [
-                    connection.profileUrl,
-                    connection.linkedinUrl,
-                    connection.publicProfileUrl,
-                    connection.vanityName
-                ];
-                
-                for (const url of possibleUrls) {
-                    if (url && url !== 'undefined' && url !== 'null' && url !== '') {
-                        // Format and open the URL
-                        if (url.includes('linkedin.com')) {
-                            console.log('Opening profile URL from connection data:', url);
-                            window.open(url.startsWith('http') ? url : 'https://' + url.replace(/^\/\//, ''), '_blank');
-                            return;
-                        } else if (url.match(/^[a-zA-Z0-9-]+$/)) {
-                            console.log('Opening LinkedIn profile with vanity name:', url);
-                            window.open('https://www.linkedin.com/in/' + url, '_blank');
-                            return;
-                        }
-                    }
-                }
-                
-                // If we have a name, use it for search
-                if (connection.name) {
-                    console.log('No valid profile URL found, searching for:', connection.name);
-                    window.open(`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(connection.name)}`, '_blank');
-                    return;
-                }
-            }
-            
-            // Last resort - go to LinkedIn homepage
-            console.log('No profile information found, going to LinkedIn homepage');
+            // Fallback if no profileUrl is available
+            console.log('No profile URL available, going to LinkedIn homepage');
             window.open('https://www.linkedin.com/', '_blank');
         }
         
@@ -1955,6 +1912,9 @@ Last Updated: ${new Date().toLocaleTimeString()}
             
             // Add default values and calculate last active time
             return attendees.map(attendee => {
+                // Determine the best profile URL for this attendee
+                const profileUrl = getBestProfileUrl(attendee);
+                
                 // If this is a raw database record format
                 if (attendee.profile) {
                     return {
@@ -1963,7 +1923,7 @@ Last Updated: ${new Date().toLocaleTimeString()}
                         title: attendee.profile.headline || attendee.profile.title || '',
                         company: attendee.profile.company || '',
                         pictureUrl: attendee.profile.profilePicture || attendee.profile.pictureUrl || 'https://randomuser.me/api/portraits/lego/1.jpg',
-                        profileUrl: attendee.profile.profileUrl || 'https://www.linkedin.com/',
+                        profileUrl: profileUrl,
                         lastActive: Math.floor((Date.now() - new Date(attendee.lastActive || Date.now()).getTime()) / 60000),
                         isCurrentUser: currentUserId && (attendee.id === currentUserId || attendee.profile.id === currentUserId)
                     };
@@ -1976,12 +1936,41 @@ Last Updated: ${new Date().toLocaleTimeString()}
                     title: attendee.title || attendee.role || '',
                     company: attendee.company || '',
                     pictureUrl: attendee.pictureUrl || attendee.profilePicture || 'https://randomuser.me/api/portraits/lego/1.jpg',
-                    profileUrl: attendee.profileUrl || attendee.linkedinUrl || 'https://www.linkedin.com/',
+                    profileUrl: profileUrl,
                     lastActive: typeof attendee.lastActive === 'number' ? attendee.lastActive : 
                         Math.floor((Date.now() - new Date(attendee.lastActive || Date.now()).getTime()) / 60000),
                     isCurrentUser: currentUserId && (attendee.id === currentUserId || attendee.userId === currentUserId)
                 };
             });
+        }
+
+        // Add this function to determine the best profile URL format
+        function getBestProfileUrl(attendee) {
+            const profile = attendee.profile || attendee;
+            let profileUrl = '';
+            
+            // 1. Check for vanity name that doesn't look like an internal ID
+            if (profile.vanityName && !profile.vanityName.match(/^[A-Z0-9]{8,12}$/i)) {
+                profileUrl = `https://www.linkedin.com/in/${profile.vanityName}`;
+                console.log(`Using vanity name for ${profile.name}: ${profileUrl}`);
+            } 
+            // 2. Check for public profile URL
+            else if (profile.publicProfileUrl && profile.publicProfileUrl.includes('/in/')) {
+                profileUrl = profile.publicProfileUrl;
+                console.log(`Using public profile URL for ${profile.name}: ${profileUrl}`);
+            }
+            // 3. Check for other profile URL formats
+            else if (profile.profileUrl && profile.profileUrl.includes('/in/')) {
+                profileUrl = profile.profileUrl;
+                console.log(`Using profile URL for ${profile.name}: ${profileUrl}`);
+            }
+            // 4. Fall back to search by ID
+            else {
+                profileUrl = `search:${attendee.id || profile.id}`;
+                console.log(`Using search fallback for ${profile.name}: ${profileUrl}`);
+            }
+            
+            return profileUrl;
         }
 
         // Start initialization when the page loads
