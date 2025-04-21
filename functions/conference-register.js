@@ -1,5 +1,5 @@
 // Conference registration function
-const faunaQueries = require('./fauna-db');
+const supabaseQueries = require('./supabase-db');
 
 exports.handler = async (event, context) => {
   // Set up CORS headers
@@ -43,8 +43,8 @@ exports.handler = async (event, context) => {
       joinedAt: new Date().toISOString()
     };
     
-    // Store in FaunaDB
-    const result = await faunaQueries.registerAttendee(attendeeData);
+    // Store in Supabase
+    const result = await supabaseQueries.registerAttendee(attendeeData);
     
     return {
       statusCode: 200,
