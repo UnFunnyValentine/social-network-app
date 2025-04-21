@@ -1,10 +1,9 @@
 const faunadb = require('faunadb');
 const q = faunadb.query;
 
-// Initialize FaunaDB client with your secret and specify the latest API version
+// Initialize FaunaDB client with just the secret (remove apiVersion)
 const client = new faunadb.Client({
-  secret: process.env.FAUNA_SECRET,
-  apiVersion: '9' // Use the latest API version instead of v4
+  secret: process.env.FAUNA_SECRET
 });
 
 // Helper functions for database operations
