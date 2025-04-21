@@ -109,10 +109,10 @@ function extractBestLinkedInUrl(userData, userId) {
   }
   
   // 4. Check for vanity name that doesn't look like an internal ID
-  if (userData.vanityName && !userData.vanityName.match(/^[A-Z0-9]{8,12}$/i)) {
+  if (userData.vanityName && !userData.vanityName.match(/^[A-Z0-9_]{8,}$/i)) {
     const vanityUrl = `https://www.linkedin.com/in/${userData.vanityName}`;
     console.log('Using vanity name for URL:', vanityUrl);
-    return vanityUrl;
+    return ensureValidLinkedInUrl(vanityUrl);
   }
   
   // 5. Check for site profile request URL (from LinkedIn API v1)
@@ -121,34 +121,80 @@ function extractBestLinkedInUrl(userData, userId) {
     return ensureValidLinkedInUrl(userData.siteStandardProfileRequest.url);
   }
   
-  // 6. Try to construct from ID if it's not numeric (might be a vanity name)
-  if (userId && !userId.match(/^[0-9]+$/)) {
-    const idUrl = `https://www.linkedin.com/in/${userId}`;
-    console.log('Constructing URL from non-numeric userId:', idUrl);
-    return idUrl;
+  // 6. Try to use the ID if it doesn't look like a system-generated ID
+  if (userId) {
+    // If it looks like a system-generated ID (all caps/numbers, typically >7 chars), use search instead
+    if (userId.match(/^[A-Z0-9_]{8,}$/)) {
+      const searchUrl = `search:${userId}`;
+      console.log('Using search for system-generated ID:', searchUrl);
+      return searchUrl;
+    }
+    
+    // If it looks like a vanity name or username (has lowercase letters, reasonable length)
+    if (userId.match(/^[a-zA-Z0-9_-]{5,30}$/) && /[a-z]/.test(userId)) {
+      const idUrl = `https://www.linkedin.com/in/${userId}`;
+      console.log('Constructing URL from likely vanity name:', idUrl);
+      return ensureValidLinkedInUrl(idUrl);
+    }
   }
   
   // 7. Fall back to search format using ID
-  return `search:${userId}`;
+  const fallbackUrl = `search:${userId || 'unknown'}`;
+  console.log('Using search fallback:', fallbackUrl);
+  return fallbackUrl;
 }
 
 // Helper function to ensure a LinkedIn URL is valid
 function ensureValidLinkedInUrl(url) {
   if (!url) return `search:unknown`;
   
+  // Clean up the URL - remove any @ symbols or other invalid characters at the start
+  url = url.replace(/^[@]+/, '');
+  
   // Return as-is if it's already a search format
   if (url.startsWith('search:')) return url;
   
-  // If it's a valid URL with linkedin.com, return as-is
-  if (url.includes('linkedin.com')) return url;
+  // If it's a valid URL with linkedin.com, return as-is but ensure it starts with https://
+  if (url.includes('linkedin.com')) {
+    // Remove any invalid characters
+    url = url.replace(/[@#$%^&*()]+/g, '');
+    
+    // Ensure it starts with https://
+    if (!url.startsWith('http')) {
+      url = 'https://' + url.replace(/^\/\//, '');
+    }
+    return url;
+  }
   
-  // If it looks like just a username/ID, make it a proper LinkedIn URL
-  if (!url.includes('://') && !url.startsWith('/')) {
+  // If it looks like a LinkedIn ID but not a full URL
+  if (url.match(/^[a-zA-Z0-9-]{5,30}$/)) {
+    // This looks like a LinkedIn ID, but we should check if it seems like a system ID
+    if (url.match(/^[A-Z0-9]{8,}$/)) {
+      // This seems to be a system-generated ID, which may not work with the /in/ format
+      // Better to use search in this case
+      return `search:${url}`;
+    }
     return `https://www.linkedin.com/in/${url}`;
   }
   
-  // If it's any other URL format, return as-is
-  if (url.startsWith('http')) return url;
+  // If it looks like just a username/ID with potential invalid chars, clean and make it a proper LinkedIn URL
+  if (!url.includes('://') && !url.startsWith('/')) {
+    // Clean up the ID to ensure it's valid for a URL
+    const cleanId = url.replace(/[^a-zA-Z0-9_-]/g, '');
+    
+    // If it still looks like an ID and not a system-generated one, use it
+    if (cleanId && !cleanId.match(/^[A-Z0-9]{8,}$/)) {
+      return `https://www.linkedin.com/in/${cleanId}`;
+    } else {
+      // Fall back to search for system-looking IDs
+      return `search:${cleanId || url}`;
+    }
+  }
+  
+  // If it's any other URL format, ensure it's clean and return
+  if (url.startsWith('http')) {
+    return url.replace(/[@#$%^&*()]+/g, '');
+  }
   
   // Default to search if nothing else works
   return `search:${url}`;
