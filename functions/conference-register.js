@@ -1,17 +1,14 @@
 // Conference registration function
-const axios = require('axios');
+const faunaQueries = require('./fauna-db');
 
-// Import the shared store for conference data
-const store = require('./shared-store');
-
-exports.handler = async function(event, context) {
-  // CORS headers for cross-origin requests
+exports.handler = async (event, context) => {
+  // Set up CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Content-Type': 'application/json'
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
-
+  
   // Handle preflight OPTIONS request
   if (event.httpMethod === 'OPTIONS') {
     return {
@@ -20,97 +17,53 @@ exports.handler = async function(event, context) {
       body: ''
     };
   }
-
-  // Only allow POST requests
-  if (event.httpMethod !== 'POST') {
-    return { 
-      statusCode: 405, 
-      headers,
-      body: JSON.stringify({ error: 'Method Not Allowed' })
-    };
-  }
-
+  
   try {
+    // Parse the incoming request body
     const data = JSON.parse(event.body);
     const { userId, conferenceId, isVisible, userData } = data;
     
-    // Validate required fields
     if (!userId || !conferenceId) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ 
-          error: 'UserId and conferenceId are required',
-          received: { userId, conferenceId }
-        })
-      };
-    }
-
-    console.log('Registering user for conference:', { 
-      userId, 
-      conferenceId, 
-      isVisible,
-      userData: userData ? `${userData.name || 'Unknown'} (${userId})` : 'None' 
-    });
-    
-    // Ensure the conference exists in our store
-    const exists = store.conferenceExists(conferenceId);
-    console.log(`Conference ${conferenceId} exists in store: ${exists}`);
-    
-    // Register user with the conference using shared store
-    const success = store.registerAttendee(conferenceId, userId, userData, isVisible !== false);
-    
-    if (!success) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ 
-          error: 'Failed to register user for conference',
-          userId,
-          conferenceId
-        })
+        body: JSON.stringify({ error: 'Missing required fields' })
       };
     }
     
-    // List all conferences for debug
-    console.log('All conferences in store:', Object.keys(store.conferenceAttendees));
+    // Format data for storage
+    const attendeeData = {
+      userId,
+      conferenceId,
+      isVisible: isVisible !== false, // Default to visible if not specified
+      name: userData.name || `${userData.firstName || ''} ${userData.lastName || ''}`.trim(),
+      profilePicture: userData.profilePicture || userData.pictureUrl || userData.picture || '',
+      role: userData.headline || userData.title || 'Conference Attendee',
+      linkedinUrl: userData.profileUrl || '',
+      joinedAt: new Date().toISOString()
+    };
     
-    // Get the current state of the conference
-    const allAttendees = Object.values(store.conferenceAttendees[conferenceId] || {});
-    const visibleAttendees = allAttendees.filter(a => a.isVisible === true);
+    // Store in FaunaDB
+    const result = await faunaQueries.registerAttendee(attendeeData);
     
-    // Log info about all attendees in this conference
-    console.log(`Conference ${conferenceId} now has ${allAttendees.length} total attendees, ${visibleAttendees.length} visible`);
-    allAttendees.forEach(attendee => {
-      console.log(`- Attendee: ${attendee.id}, name: ${attendee.profile?.name || 'unnamed'}, visible: ${attendee.isVisible}`);
-    });
-    
-    // Return success response with attendee info
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({
-        status: 'success',
-        message: 'User registered successfully',
-        data: {
-          id: userId,
-          conferenceId,
-          isVisible: isVisible !== false,
-          timestamp: new Date().toISOString(),
-          attendeeCount: allAttendees.length,
-          visibleAttendeeCount: visibleAttendees.length
-        }
+      body: JSON.stringify({ 
+        success: true, 
+        message: 'Registration successful',
+        data: result.data
       })
     };
   } catch (error) {
-    console.error('Error in conference-register function:', error);
+    console.error('Registration error:', error);
     
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
-        error: 'Internal server error',
-        message: error.message
+        error: 'Failed to register for conference',
+        details: error.message
       })
     };
   }
