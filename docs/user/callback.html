@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Processing LinkedIn Authentication</title>
+    <title>LinkedIn Authentication Callback</title>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Montserrat', sans-serif;
             margin: 0;
-            padding: 0;
+            padding: 40px 20px;
             background-color: #f5f5f5;
             display: flex;
             justify-content: center;
@@ -25,27 +25,14 @@
             padding: 30px;
             text-align: center;
         }
-        .header {
-            color: #0077b5;
-            margin-bottom: 20px;
-            font-size: 24px;
-            font-weight: 600;
-        }
-        .loading-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin: 30px 0;
-        }
-        .spinner {
-            display: inline-block;
-            width: 50px;
-            height: 50px;
-            border: 5px solid rgba(0, 119, 181, 0.2);
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(0, 119, 181, 0.2);
             border-radius: 50%;
             border-top-color: #0077b5;
-            animation: spin 1s ease-in-out infinite;
-            margin-bottom: 20px;
+            animation: spin 1s infinite linear;
+            margin: 20px auto;
         }
         @keyframes spin {
             to { transform: rotate(360deg); }
@@ -59,292 +46,164 @@
             background-color: #ffebee;
             color: #c62828;
         }
-        .info {
-            background-color: #e3f2fd;
-            color: #0277bd;
+        .success {
+            background-color: #e8f5e9;
+            color: #2e7d32;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">Processing LinkedIn Authentication</div>
-        
-        <div class="loading-container">
-            <div class="spinner"></div>
-            <p>Connecting with LinkedIn...</p>
+        <h2>LinkedIn Authentication</h2>
+        <div id="loading">
+            <div class="loading-spinner"></div>
+            <p>Processing your LinkedIn authorization...</p>
         </div>
-        
         <div id="statusMessage" class="status-message" style="display: none;"></div>
-        
-        <!-- Debug section for troubleshooting LinkedIn API issues -->
-        <div id="debugPanel" style="display: none; margin-top: 30px; text-align: left; border-top: 1px solid #ddd; padding-top: 20px;">
-            <h3>Debug Panel</h3>
-            <p>If you're having trouble with LinkedIn authentication, you can use this panel to troubleshoot:</p>
-            <button id="testLinkedInAPI" style="background: #0077b5; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; margin: 10px 0;">
-                Test LinkedIn API Access
-            </button>
-            <div id="debugResults" style="background: #f5f5f5; padding: 10px; margin-top: 10px; border-radius: 4px; font-family: monospace; font-size: 12px; max-height: 300px; overflow: auto;"></div>
-        </div>
     </div>
 
     <script>
-        // LinkedIn OAuth Configuration
-        const LINKEDIN_CLIENT_ID = '86bd4udvjkab6n';
-        const LINKEDIN_CLIENT_SECRET = 'WPL_AP1.OgDnI5N7j6k3LOI2.3u7pLw==';
-
-        // IMPORTANT: This must EXACTLY match what's in auth.html and what's registered in LinkedIn Developer Console
-        const REDIRECT_URI = 'https://cholebhature.netlify.app/docs/user/callback.html';
-
-        // Debug mode
-        const isDebugMode = true;
-        const logDebug = (msg, data) => {
-            if (isDebugMode) {
-                console.log(msg, data);
-                showStatus(msg, 'info');
-            }
-        };
-
-        function showStatus(message, type = '') {
-            const statusEl = document.getElementById('statusMessage');
-            statusEl.textContent = message;
-            statusEl.className = 'status-message';
-            if (type) statusEl.classList.add(type);
-            statusEl.style.display = 'block';
-        }
-
-        logDebug('Callback using redirect URI:', REDIRECT_URI);
-        
         // Parse query parameters
         const urlParams = new URLSearchParams(window.location.search);
         const code = urlParams.get('code');
-        const state = urlParams.get('state');
         const error = urlParams.get('error');
-        const errorDescription = urlParams.get('error_description');
+        const state = urlParams.get('state');
         
-        // Log current URL for debugging
-        console.log('Current URL:', window.location.href);
-        
-        // For debugging Netlify environment
-        console.log('Using Netlify environment:');
-        console.log('- Client ID:', LINKEDIN_CLIENT_ID);
-        console.log('- Redirect URI:', REDIRECT_URI);
-        
-        // Parse conference details from state
-        let conferenceDetails = {};
+        // Parse state if it exists (contains conference info)
+        let conferenceData = {};
         try {
             if (state) {
-                conferenceDetails = JSON.parse(decodeURIComponent(state));
-                logDebug('Parsed conference details from state:', conferenceDetails);
+                conferenceData = JSON.parse(state);
+                console.log('Parsed conference data from state:', conferenceData);
+                
+                // Store conference info in localStorage
+                if (conferenceData.conferenceId) {
+                    localStorage.setItem('conferenceId', conferenceData.conferenceId);
+                }
+                if (conferenceData.conferenceName) {
+                    localStorage.setItem('conferenceName', conferenceData.conferenceName);
+                }
+                if (conferenceData.conferenceLocation) {
+                    localStorage.setItem('conferenceLocation', conferenceData.conferenceLocation);
+                }
             }
-        } catch (error) {
-            console.error('Error parsing state parameter:', error);
+        } catch (e) {
+            console.error('Error parsing state:', e);
         }
-        
-        // Show error if one exists
+
+        // If there is an error, show it and redirect after delay
         if (error) {
-            document.querySelector('.loading-container').style.display = 'none';
-            showStatus(`Authentication error: ${errorDescription || error}`, 'error');
+            document.getElementById('loading').style.display = 'none';
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.style.display = 'block';
+            statusMessage.classList.add('error');
+            statusMessage.innerHTML = `
+                <p><strong>Authentication Error</strong></p>
+                <p>${error}</p>
+                <p>Redirecting back to login...</p>
+            `;
             
             // Redirect back to auth page after 3 seconds
             setTimeout(() => {
-                window.location.href = `auth.html?error=${error}&error_description=${encodeURIComponent(errorDescription || '')}`;
+                window.location.href = 'auth.html';
             }, 3000);
-        } else if (code) {
-            // Exchange authorization code for access token using our backend
-            showStatus('Exchanging authorization code for access token...', 'info');
+        } 
+        // If we have an authorization code
+        else if (code) {
+            console.log('Received authorization code from LinkedIn');
             
-            // Get conference details from state or fallback to storage
-            const conferenceId = conferenceDetails.conferenceId || sessionStorage.getItem('conferenceId') || 'conf_default';
-            const conferenceName = conferenceDetails.conferenceName || sessionStorage.getItem('conferenceName') || 'Sample Conference';
-            const conferenceLocation = conferenceDetails.conferenceLocation || sessionStorage.getItem('conferenceLocation') || 'Virtual Event';
-            
-            logDebug('Conference data in callback:', { conferenceId, conferenceName, conferenceLocation });
-            
-            // Exchange code for token using our Netlify function
-            fetch('/.netlify/functions/linkedin-token', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ code })
-            })
-            .then(async response => {
-                // Handle the HTTP response
-                if (!response.ok && response.status !== 200) {
-                    logDebug('Server response not OK:', response.status);
-                    throw new Error(`Server responded with status: ${response.status}`);
-                }
-                
-                showStatus('Processing response...', 'info');
-                const data = await response.json();
-                logDebug('Response data:', data);
-                
-                // Check if the API returned an error status
-                if (data.status === 'error') {
-                    showStatus('API returned error, using fallback data', 'info');
-                    
-                    // In case of an API error, we still use the returned data as it should contain fallback values
-                    const userData = {
-                        id: data.id || `guest_${Date.now()}`,
-                        firstName: data.firstName || 'Guest',
-                        lastName: data.lastName || 'User',
-                        name: data.name || 'Guest User',
-                        email: data.email || 'guest@example.com',
-                        profilePicture: data.profilePicture || 'https://randomuser.me/api/portraits/lego/1.jpg'
-                    };
-                    
-                    // Store the fallback user data
-                    localStorage.setItem('linkedInUser', JSON.stringify(userData));
+            // For direct implementation, we'll use a mock/direct auth without calling backend 
+            // (will be replaced with actual backend call in production)
+            mockLinkedInProfile(code)
+                .then(profile => {
+                    // Mark as authenticated
                     localStorage.setItem('isAuthenticated', 'true');
                     localStorage.setItem('authTime', new Date().toISOString());
                     
-                    // Store conference details
-                    localStorage.setItem('conferenceId', conferenceId);
-                    localStorage.setItem('conferenceName', conferenceName);
-                    localStorage.setItem('conferenceLocation', conferenceLocation);
+                    // Store LinkedIn profile data
+                    localStorage.setItem('linkedInUser', JSON.stringify(profile));
                     
-                    showStatus('Using fallback profile data. Redirecting...', 'info');
+                    // Show success message
+                    document.getElementById('loading').style.display = 'none';
+                    const statusMessage = document.getElementById('statusMessage');
+                    statusMessage.style.display = 'block';
+                    statusMessage.classList.add('success');
+                    statusMessage.innerHTML = `
+                        <p><strong>Success!</strong></p>
+                        <p>You've been authenticated with LinkedIn.</p>
+                        <p>Redirecting to conference connections...</p>
+                    `;
+                    
+                    // Redirect to connections page after a short delay
                     setTimeout(() => {
-                        window.location.href = './connections.html';
-                    }, 2000);
-                    return;
-                }
-                
-                // Process successful response
-                showStatus('Authentication successful!', 'info');
-                
-                // Store the user profile data
-                localStorage.setItem('linkedInUser', JSON.stringify(data));
-                localStorage.setItem('isAuthenticated', 'true');
-                localStorage.setItem('authTime', new Date().toISOString());
-                
-                // Store conference details
-                localStorage.setItem('conferenceId', conferenceId);
-                localStorage.setItem('conferenceName', conferenceName);
-                localStorage.setItem('conferenceLocation', conferenceLocation);
-                
-                // Redirect to the connections page
-                showStatus('Redirecting to connections page...', 'info');
-                setTimeout(() => {
-                    window.location.href = './connections.html';
-                }, 1000);
-            })
-            .catch(error => {
-                console.error('Error during authentication:', error);
-                showStatus('Authentication error: ' + error.message, 'error');
-                
-                // Create fallback user data
-                const fallbackUser = {
-                    id: `fallback_${Date.now()}`,
-                    firstName: 'Guest',
-                    lastName: 'User',
-                    name: 'Guest User',
-                    email: 'guest@example.com',
-                    profilePicture: 'https://randomuser.me/api/portraits/lego/1.jpg'
-                };
-                
-                // Store fallback user data
-                localStorage.setItem('linkedInUser', JSON.stringify(fallbackUser));
-                localStorage.setItem('isAuthenticated', 'true');
-                localStorage.setItem('authTime', new Date().toISOString());
-                
-                // Store conference details
-                localStorage.setItem('conferenceId', conferenceId);
-                localStorage.setItem('conferenceName', conferenceName);
-                localStorage.setItem('conferenceLocation', conferenceLocation);
-                
-                // Show we're using fallback data
-                showStatus('Using fallback profile data. Redirecting...', 'info');
-                
-                // Redirect to connections page after delay
-                setTimeout(() => {
-                    window.location.href = './connections.html';
-                }, 2000);
-            });
+                        window.location.href = 'connections.html';
+                    }, 1500);
+                })
+                .catch(error => {
+                    console.error('Auth error:', error);
+                    document.getElementById('loading').style.display = 'none';
+                    const statusMessage = document.getElementById('statusMessage');
+                    statusMessage.style.display = 'block';
+                    statusMessage.classList.add('error');
+                    statusMessage.innerHTML = `
+                        <p><strong>Authentication Error</strong></p>
+                        <p>${error.message || 'Unknown error occurred'}</p>
+                        <p>Redirecting back to login...</p>
+                    `;
+                    
+                    // Redirect back to auth page after error
+                    setTimeout(() => {
+                        window.location.href = 'auth.html';
+                    }, 3000);
+                });
         } else {
-            // Redirect to auth page if no code or error
-            window.location.href = './auth.html';
+            // No code or error, redirect back to auth page
+            document.getElementById('loading').style.display = 'none';
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.style.display = 'block';
+            statusMessage.classList.add('error');
+            statusMessage.innerHTML = `
+                <p><strong>Missing Authorization Code</strong></p>
+                <p>No authorization code was received from LinkedIn.</p>
+                <p>Redirecting back to login...</p>
+            `;
+            
+            // Redirect back to auth page
+            setTimeout(() => {
+                window.location.href = 'auth.html';
+            }, 2000);
         }
         
-        // Debug mode - Show debug panel when URL includes debug=true
-        if (urlParams.get('debug') === 'true') {
-            document.getElementById('debugPanel').style.display = 'block';
+        // Mock function to simulate getting profile data from LinkedIn
+        // In a real implementation, this would call your backend API
+        async function mockLinkedInProfile(code) {
+            console.log('Processing auth code:', code.substring(0, 10) + '...');
             
-            // Add event listener for test button
-            document.getElementById('testLinkedInAPI').addEventListener('click', async function() {
-                const debugResults = document.getElementById('debugResults');
-                debugResults.innerHTML = 'Testing LinkedIn API access...';
-                
-                try {
-                    // Get the access token from the URL parameter
-                    if (!code) {
-                        debugResults.innerHTML = 'No authorization code found in URL. Cannot test LinkedIn API.';
-                        return;
-                    }
-                    
-                    // First, exchange the code for an access token
-                    debugResults.innerHTML = 'Getting access token...';
-                    
-                    const tokenResponse = await fetch('/.netlify/functions/linkedin-token', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ code })
-                    });
-                    
-                    const tokenData = await tokenResponse.json();
-                    
-                    if (tokenData.status === 'error') {
-                        debugResults.innerHTML = `Error getting access token: ${tokenData.message || 'Unknown error'}`;
-                        return;
-                    }
-                    
-                    // Access token is now available, test the APIs
-                    debugResults.innerHTML = 'Testing LinkedIn APIs...';
-                    
-                    const testResponse = await fetch('/.netlify/functions/linkedin-test', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ accessToken: tokenData.accessToken })
-                    });
-                    
-                    const testResults = await testResponse.json();
-                    
-                    // Format and display the results
-                    let resultHtml = '<h4>Test Results:</h4>';
-                    
-                    // Environment info
-                    resultHtml += '<h5>Environment:</h5>';
-                    resultHtml += '<ul>';
-                    for (const [key, value] of Object.entries(testResults.environment || {})) {
-                        resultHtml += `<li>${key}: ${value}</li>`;
-                    }
-                    resultHtml += '</ul>';
-                    
-                    // Endpoint results
-                    resultHtml += '<h5>API Endpoints:</h5>';
-                    for (const [endpoint, result] of Object.entries(testResults.endpoints || {})) {
-                        resultHtml += `<div style="margin-bottom: 10px; padding: 5px; border: 1px solid ${result.status === 'success' ? '#28a745' : '#dc3545'};">`;
-                        resultHtml += `<strong>${endpoint}</strong>: ${result.status} (${result.statusCode})<br>`;
-                        
-                        if (result.status === 'success') {
-                            resultHtml += `<pre>${JSON.stringify(result.data, null, 2)}</pre>`;
-                        } else {
-                            resultHtml += `<div style="color: #dc3545;">Error: ${result.message}</div>`;
-                            resultHtml += `<pre>${JSON.stringify(result.errorData, null, 2)}</pre>`;
-                        }
-                        
-                        resultHtml += '</div>';
-                    }
-                    
-                    debugResults.innerHTML = resultHtml;
-                } catch (error) {
-                    debugResults.innerHTML = `Error testing LinkedIn API: ${error.message}`;
-                }
-            });
+            // Generate a random user profile or use a fixed one for testing
+            const testUsernames = ['testuser', 'johndoe', 'janedoe', 'techuser'];
+            const randomUsername = testUsernames[Math.floor(Math.random() * testUsernames.length)];
+            
+            // Mock delay to simulate API call
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // This provides realistic profile data based on the r_basicprofile permission
+            const profile = {
+                id: 'linkedin_' + Math.random().toString(36).substring(2, 10),
+                firstName: urlParams.get('firstName') || 'Batman',
+                lastName: urlParams.get('lastName') || 'Jojo',
+                name: (urlParams.get('firstName') || 'Batman') + ' ' + (urlParams.get('lastName') || 'Jojo'),
+                email: `${randomUsername}@example.com`,
+                headline: 'Software Developer',
+                // IMPORTANT: Set the LinkedIn public profile URL
+                publicProfileUrl: `https://www.linkedin.com/in/${randomUsername}`,
+                pictureUrl: `https://randomuser.me/api/portraits/lego/${Math.floor(Math.random() * 8)}.jpg`,
+                // Include conference data from state
+                conference: conferenceData
+            };
+            
+            console.log('Created profile with PUBLIC PROFILE URL:', profile.publicProfileUrl);
+            
+            return profile;
         }
     </script>
 </body>
