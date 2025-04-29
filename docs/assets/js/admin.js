@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Function to load conference logs
 async function loadConferenceLogs() {
     try {
-        const response = await fetch('/.netlify/functions/conference-history');
+        const response = await fetch('/api/conference/history');
         const data = await response.json();
         
         if (data.success && data.data.length > 0) {
@@ -160,7 +160,7 @@ function generateAndDownloadQR(conferenceId, conferenceName, conferenceURL) {
 // Function to save QR data to database
 async function saveQRDataToDatabase(conferenceId, qrData) {
     try {
-        await fetch('/.netlify/functions/conference-save-qr', {
+        await fetch('/api/conference/save-qr', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -238,7 +238,7 @@ function generateConferenceQR() {
 async function saveConferenceToDatabase(id, name, location, qrData) {
     try {
         // First save the conference
-        await fetch('/.netlify/functions/conference-save-qr', {
+        await fetch('/api/conference/save-qr', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
