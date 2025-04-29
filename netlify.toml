@@ -24,35 +24,24 @@
   force = true
 
 [[redirects]]
+  from = "/api/conference/history"
+  to = "/.netlify/functions/conference-history"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/conference/save-qr"
+  to = "/.netlify/functions/conference-save-qr"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/debug/*"
   to = "/.netlify/functions/debug-store"
   status = 200
   force = true
 
-# Functions
-[[functions]]
+# Functions configuration
+[functions]
   directory = "functions"
   external_node_modules = ["@supabase/supabase-js", "faunadb"]
-
-# New conference history function
-[[functions]]
-  path = "/conference-history"
-  name = "conference-history"
-
-# New conference save QR function
-[[functions]]
-  path = "/conference-save-qr"
-  name = "conference-save-qr"
-
-# Existing functions
-[[functions]]
-  path = "/conference-register"
-  name = "conference-register"
-
-[[functions]]
-  path = "/conference-attendees"
-  name = "conference-attendees"
-
-[[functions]]
-  path = "/conference-visibility"
-  name = "conference-visibility"
