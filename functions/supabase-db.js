@@ -14,7 +14,8 @@ const supabaseQueries = {
       .insert([{
         id: conferenceData.id,
         name: conferenceData.name,
-        location: conferenceData.location || ''
+        location: conferenceData.location || '',
+        qr_data: conferenceData.qrData || null
       }])
       .select()
       .single();
@@ -32,6 +33,28 @@ const supabaseQueries = {
     
     if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "no rows returned"
     return data || null;
+  },
+  
+  getAllConferences: async () => {
+    const { data, error } = await supabase
+      .from('conferences')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
+  },
+  
+  updateConferenceQrData: async (conferenceId, qrData) => {
+    const { data, error } = await supabase
+      .from('conferences')
+      .update({ qr_data: qrData })
+      .eq('id', conferenceId)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
   },
   
   // Attendee functions
