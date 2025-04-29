@@ -1,6 +1,7 @@
 [build]
   publish = "."
   functions = "functions"
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF . /"
 
 # Redirect API calls to the corresponding function
 [[redirects]]
@@ -27,3 +28,31 @@
   to = "/.netlify/functions/debug-store"
   status = 200
   force = true
+
+# Functions
+[[functions]]
+  directory = "functions"
+  external_node_modules = ["@supabase/supabase-js", "faunadb"]
+
+# New conference history function
+[[functions]]
+  path = "/conference-history"
+  name = "conference-history"
+
+# New conference save QR function
+[[functions]]
+  path = "/conference-save-qr"
+  name = "conference-save-qr"
+
+# Existing functions
+[[functions]]
+  path = "/conference-register"
+  name = "conference-register"
+
+[[functions]]
+  path = "/conference-attendees"
+  name = "conference-attendees"
+
+[[functions]]
+  path = "/conference-visibility"
+  name = "conference-visibility"
