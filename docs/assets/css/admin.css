@@ -105,3 +105,101 @@ body {
 .form-container {
     margin-bottom: 20px;
 }
+
+/* Conference History Logs Styles */
+.logs-container {
+    margin-top: 30px;
+    border-top: 1px solid #eee;
+    padding-top: 20px;
+}
+
+.logs-header {
+    font-size: 20px;
+    font-weight: 600;
+    color: #0073b1;
+    margin-bottom: 15px;
+}
+
+.logs-list {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #eee;
+    border-radius: 8px;
+}
+
+.log-item {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+    background-color: #f9f9f9;
+}
+
+.log-item:last-child {
+    border-bottom: none;
+}
+
+.log-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.log-name {
+    font-weight: 600;
+    font-size: 16px;
+    color: #333;
+}
+
+.log-date {
+    font-size: 12px;
+    color: #666;
+}
+
+.log-details {
+    margin-bottom: 10px;
+}
+
+.log-detail {
+    margin-bottom: 5px;
+    display: flex;
+    color: #444;
+}
+
+.log-label {
+    font-weight: 500;
+    margin-right: 10px;
+    min-width: 80px;
+}
+
+.log-url {
+    word-break: break-all;
+    background: #f1f1f1;
+    padding: 8px;
+    border-radius: 4px;
+    margin: 8px 0;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+.log-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+    gap: 10px;
+}
+
+.btn-download-qr {
+    background-color: #0077b5;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+}
+
+.btn-download-qr i {
+    margin-right: 5px;
+}
