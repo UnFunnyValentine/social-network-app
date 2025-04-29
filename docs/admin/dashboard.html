@@ -88,7 +88,7 @@
     <!-- Add this script right after the body tag opens -->
     <script>
         if (localStorage.getItem('adminLoggedIn') !== 'true') {
-            window.location.href = 'login.html';
+            window.location.href = 'index.html';
         }
     </script>
     
@@ -98,14 +98,6 @@
         <button class="btn-logout" onclick="logout()">Logout</button>
     </div>
     
-    <!-- Add this script before closing body tag -->
-    <script>
-        <!-- Update the logout redirect -->
-function logout() {
-    localStorage.removeItem('adminLoggedIn');
-    window.location.href = 'login.html';
-}
-    </script>
     <div class="container">
         <div class="header">Conference QR Generator</div>
         <div class="form-container">
@@ -119,6 +111,14 @@ function logout() {
             <button id="downloadBtn" onclick="downloadQRImage()">
                 <i class="fas fa-download"></i> Save QR Code as Image
             </button>
+        </div>
+        
+        <!-- Conference logs container will be dynamically added here by JS -->
+        <div id="logsContainer" class="logs-container">
+            <div class="logs-header">Conference History</div>
+            <div id="logsList" class="logs-list">
+                <!-- Log items will be dynamically added here -->
+            </div>
         </div>
     </div>
 
