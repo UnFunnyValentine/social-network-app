@@ -125,6 +125,17 @@
             return /LinkedIn/i.test(userAgent);
         }
 
+        // Check for LinkedIn app deep link callback parameters
+        function checkForLinkedInAppCallback() {
+            // LinkedIn might append parameters like "oauth_token" or specific markers
+            // when redirecting back from the app
+            const url = window.location.href;
+            return url.includes('linkedin://') || 
+                   url.includes('linkedin-sdk') || 
+                   isLinkedInApp() ||
+                   urlParams.get('linkedInApp') === 'true';
+        }
+
         logDebug('Callback using redirect URI:', REDIRECT_URI);
         
         // Parse query parameters
@@ -134,9 +145,13 @@
         const error = urlParams.get('error');
         const errorDescription = urlParams.get('error_description');
         
+        // Check if this is a LinkedIn app callback
+        const isAppCallback = checkForLinkedInAppCallback();
+        
         // Log current URL for debugging
         console.log('Current URL:', window.location.href);
         console.log('Is LinkedIn App:', isLinkedInApp());
+        console.log('Is App Callback:', isAppCallback);
         
         // For debugging Netlify environment
         console.log('Using Netlify environment:');
@@ -237,7 +252,7 @@
                 },
                 body: JSON.stringify({ 
                     code,
-                    fromApp: isFromApp,
+                    fromApp: isFromApp || isAppCallback,
                     // Pass conference info to ensure it's preserved
                     conferenceId,
                     conferenceName,
@@ -286,13 +301,28 @@
                 // Redirect to the connections page
                 showStatus('Redirecting to connections page...', 'info');
                 setTimeout(() => {
-                    if (isLinkedInApp()) {
-                        // Try deep linking back to the LinkedIn app
-                        window.location.href = 'linkedin://connections-app';
-                        // Fallback in case deep linking fails
-                        setTimeout(() => {
+                    if (isLinkedInApp() || isAppCallback || isFromApp) {
+                        // Try deep linking back to the LinkedIn app or custom app
+                        try {
+                            // Try multiple app-return approaches
+                            
+                            // 1. Try LinkedIn SDK return URL
+                            window.location.href = 'linkedin://connections-app';
+                            
+                            // 2. Also try with a custom return scheme if defined
+                            setTimeout(() => {
+                                // If we're still here, try an alternate return URL
+                                window.location.href = 'com.linkedin.android://connections';
+                                
+                                // Final fallback to web
+                                setTimeout(() => {
+                                    window.location.href = './connections.html';
+                                }, 800);
+                            }, 800);
+                        } catch (e) {
+                            console.error('Error with app deep linking:', e);
                             window.location.href = './connections.html';
-                        }, 1000);
+                        }
                     } else {
                         window.location.href = './connections.html';
                     }
