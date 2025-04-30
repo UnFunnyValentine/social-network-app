@@ -203,3 +203,88 @@ body {
 .btn-download-qr i {
     margin-right: 5px;
 }
+
+.btn-download-qr:hover {
+    background-color: #006097;
+}
+
+.btn-copy-link {
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+}
+
+.btn-copy-link i {
+    margin-right: 5px;
+}
+
+.btn-copy-link:hover {
+    background-color: #5a6268;
+}
+
+/* Live Conferences Styles */
+.live-container {
+    margin-top: 30px;
+    margin-bottom: 40px;
+    border: 2px solid #28a745;
+    border-radius: 10px;
+    padding: 20px;
+    background-color: rgba(40, 167, 69, 0.05);
+    position: relative;
+}
+
+.live-header {
+    font-size: 20px;
+    font-weight: 600;
+    color: #28a745;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+}
+
+.live-badge {
+    background-color: #28a745;
+    color: white;
+    font-size: 12px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    margin-left: 10px;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+.live-list {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid rgba(40, 167, 69, 0.3);
+    border-radius: 8px;
+    background-color: white;
+}
+
+.live-item {
+    border-bottom: 1px solid rgba(40, 167, 69, 0.2);
+    background-color: #f8fff9;
+}
+
+.live-time-remaining {
+    color: #28a745;
+    font-weight: 500;
+    margin-left: 5px;
+}
