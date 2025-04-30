@@ -63,9 +63,11 @@ const supabaseQueries = {
     const conference = await supabaseQueries.getConference(attendeeData.conferenceId);
     if (!conference) {
       try {
+        // Just create a placeholder conference record - name/location will be updated properly by admin later
         await supabaseQueries.createConference({
           id: attendeeData.conferenceId,
-          name: 'Conference ' + attendeeData.conferenceId,
+          name: 'Temporary Conference',
+          location: 'To be updated',
         });
       } catch (error) {
         console.warn('Error creating conference:', error);
