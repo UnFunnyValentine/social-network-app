@@ -186,8 +186,18 @@
                 window.location.href = `auth.html?error=${error}&error_description=${encodeURIComponent(errorDescription || '')}`;
             }, 3000);
         } else if (code) {
+            // We have an authorization code, this is a successful authentication
+            // Check if this came from app authentication (mobile)
+            const isFromApp = conferenceDetails.fromApp === true;
+            const mobileDisplay = isFromApp ? ' via LinkedIn app' : '';
+            
+            document.querySelector('.loading-container').innerHTML = `
+                <div class="spinner"></div>
+                <p>Processing LinkedIn authentication${mobileDisplay}...</p>
+            `;
+            
             // Exchange authorization code for access token using our backend
-            showStatus('Exchanging authorization code for access token...', 'info');
+            showStatus('Retrieving your LinkedIn profile...', 'info');
             
             // Get conference details from state, pending details, or fallback to storage
             let conferenceId, conferenceName, conferenceLocation;
@@ -216,7 +226,7 @@
                     logDebug('Using conference details from session storage', { conferenceId, conferenceName, conferenceLocation });
                 }
             }
-            
+
             logDebug('Conference data in callback:', { conferenceId, conferenceName, conferenceLocation });
             
             // Exchange code for token using our Netlify function
@@ -225,7 +235,14 @@
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ code })
+                body: JSON.stringify({ 
+                    code,
+                    fromApp: isFromApp,
+                    // Pass conference info to ensure it's preserved
+                    conferenceId,
+                    conferenceName,
+                    conferenceLocation
+                })
             })
             .then(async response => {
                 // Handle the HTTP response
@@ -234,52 +251,27 @@
                     throw new Error(`Server responded with status: ${response.status}`);
                 }
                 
-                showStatus('Processing response...', 'info');
+                showStatus('Processing your profile data...', 'info');
                 const data = await response.json();
                 logDebug('Response data:', data);
                 
                 // Check if the API returned an error status
                 if (data.status === 'error') {
-                    showStatus('API returned error, using fallback data', 'info');
-                    
-                    // In case of an API error, we still use the returned data as it should contain fallback values
-                    const userData = {
-                        id: data.id || `guest_${Date.now()}`,
-                        firstName: data.firstName || 'Guest',
-                        lastName: data.lastName || 'User',
-                        name: data.name || 'Guest User',
-                        email: data.email || 'guest@example.com',
-                        profilePicture: data.profilePicture || 'https://randomuser.me/api/portraits/lego/1.jpg'
-                    };
-                    
-                    // Store the fallback user data
-                    localStorage.setItem('linkedInUser', JSON.stringify(userData));
-                    localStorage.setItem('isAuthenticated', 'true');
-                    localStorage.setItem('authTime', new Date().toISOString());
-                    
-                    // Store conference details
-                    localStorage.setItem('conferenceId', conferenceId);
-                    localStorage.setItem('conferenceName', conferenceName);
-                    localStorage.setItem('conferenceLocation', conferenceLocation);
-                    
-                    showStatus('Using fallback profile data. Redirecting...', 'info');
-                    setTimeout(() => {
-                        if (isLinkedInApp()) {
-                            // Try deep linking back to the LinkedIn app
-                            window.location.href = 'linkedin://connections-app';
-                            // Fallback in case deep linking fails
-                            setTimeout(() => {
-                                window.location.href = './connections.html';
-                            }, 1000);
-                        } else {
-                            window.location.href = './connections.html';
-                        }
-                    }, 2000);
-                    return;
+                    showStatus('API returned error. Please try again.', 'error');
+                    throw new Error(data.message || 'Unknown error from LinkedIn API');
                 }
                 
                 // Process successful response
                 showStatus('Authentication successful!', 'info');
+                
+                // Show profile details
+                document.querySelector('.loading-container').innerHTML = `
+                    <img src="${data.profilePicture || 'https://www.linkedin.com/favicon.ico'}" 
+                        alt="Profile" style="width: 60px; height: 60px; border-radius: 50%; margin-bottom: 15px; object-fit: cover;">
+                    <p style="font-weight: bold; font-size: 18px;">${data.name || 'LinkedIn User'}</p>
+                    <p>${data.email || ''}</p>
+                    <p style="margin-top: 15px; color: green;"><i>Successfully authenticated!</i></p>
+                `;
                 
                 // Store the user profile data
                 localStorage.setItem('linkedInUser', JSON.stringify(data));
@@ -304,39 +296,30 @@
                     } else {
                         window.location.href = './connections.html';
                     }
-                }, 1000);
+                }, 2000);
             })
             .catch(error => {
                 console.error('Error during authentication:', error);
                 showStatus('Authentication error: ' + error.message, 'error');
                 
-                // Create fallback user data
-                const fallbackUser = {
-                    id: `fallback_${Date.now()}`,
-                    firstName: 'Guest',
-                    lastName: 'User',
-                    name: 'Guest User',
-                    email: 'guest@example.com',
-                    profilePicture: 'https://randomuser.me/api/portraits/lego/1.jpg'
-                };
+                // Update UI to show error
+                document.querySelector('.loading-container').innerHTML = `
+                    <div style="color: #c62828; margin-bottom: 20px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 24 24" fill="#c62828">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                        </svg>
+                        <p style="margin-top: 10px; font-weight: bold;">Authentication Failed</p>
+                    </div>
+                    <p>${error.message}</p>
+                    <button id="retryBtn" style="margin-top: 20px; background: #0077b5; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">
+                        Try Again
+                    </button>
+                `;
                 
-                // Store fallback user data
-                localStorage.setItem('linkedInUser', JSON.stringify(fallbackUser));
-                localStorage.setItem('isAuthenticated', 'true');
-                localStorage.setItem('authTime', new Date().toISOString());
-                
-                // Store conference details
-                localStorage.setItem('conferenceId', conferenceId);
-                localStorage.setItem('conferenceName', conferenceName);
-                localStorage.setItem('conferenceLocation', conferenceLocation);
-                
-                // Show we're using fallback data
-                showStatus('Using fallback profile data. Redirecting...', 'info');
-                
-                // Redirect to connections page after delay
-                setTimeout(() => {
-                    window.location.href = './connections.html';
-                }, 2000);
+                // Add event listener to retry button
+                document.getElementById('retryBtn').addEventListener('click', function() {
+                    window.location.href = 'auth.html';
+                });
             });
         } else {
             // Check for previously stored valid auth data
@@ -356,10 +339,24 @@
                 localStorage.setItem('conferenceName', conferenceName);
                 localStorage.setItem('conferenceLocation', conferenceLocation);
                 
+                // Show user info from stored data
+                try {
+                    const user = JSON.parse(userData);
+                    document.querySelector('.loading-container').innerHTML = `
+                        <img src="${user.profilePicture || 'https://www.linkedin.com/favicon.ico'}" 
+                            alt="Profile" style="width: 60px; height: 60px; border-radius: 50%; margin-bottom: 15px; object-fit: cover;">
+                        <p style="font-weight: bold; font-size: 18px;">${user.name || 'LinkedIn User'}</p>
+                        <p>${user.email || ''}</p>
+                        <p style="margin-top: 15px; color: green;"><i>Using existing session</i></p>
+                    `;
+                } catch (e) {
+                    console.error('Error displaying user data:', e);
+                }
+                
                 // Redirect to connections page
                 setTimeout(() => {
                     window.location.href = './connections.html';
-                }, 1000);
+                }, 2000);
             } else {
                 // Redirect to auth page if no code or error and no stored auth
                 window.location.href = './auth.html';
