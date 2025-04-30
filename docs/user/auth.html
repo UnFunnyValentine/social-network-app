@@ -325,58 +325,95 @@
             const authTimestamp = Date.now();
             localStorage.setItem('authTimestamp', authTimestamp);
             
-            // Attempt to use LinkedIn app authentication via deep linking
-            // This URL scheme should open the LinkedIn app with a sign-in prompt
-            // URI scheme for app authentication
-            const appUri = `linkedin://oauth/v2/authorization?response_type=code&client_id=86bd4udvjkab6n&redirect_uri=${encodeURIComponent('https://cholebhature.netlify.app/docs/user/callback.html')}&state=${encodeURIComponent(JSON.stringify({
+            // LinkedIn OAuth Configuration
+            const LINKEDIN_CLIENT_ID = '86bd4udvjkab6n';
+            
+            // Set the redirect URI to an absolute URL based on current origin
+            let REDIRECT_URI = 'https://cholebhature.netlify.app/docs/user/callback.html';
+            
+            // For local development, allow overriding with localhost
+            if (window.location.hostname === 'localhost') {
+                REDIRECT_URI = `${window.location.origin}/docs/user/callback.html`;
+            }
+            
+            // Required LinkedIn API scopes - must match what's configured in LinkedIn Developer Portal
+            const LINKEDIN_SCOPES = [
+                'openid',
+                'profile',
+                'r_basicprofile',
+                'email'
+            ].join(' ');
+            
+            // Create state parameter with conference details
+            const stateData = {
                 conferenceId,
                 conferenceName,
                 conferenceLocation,
                 timestamp: authTimestamp,
                 fromApp: true
-            }))}`;
-            
-            // Second option: try to use the standard LinkedIn mobile app
-            const fallbackUri = 'linkedin://';
-            
-            // Final fallback to the connections page with a manual token
-            const webFallback = () => {
-                console.log('LinkedIn app not detected, creating local fallback session');
-                
-                // Create a fallback user profile when app auth fails
-                const fallbackUser = {
-                    id: `mobile_${Date.now()}`,
-                    name: 'LinkedIn User',
-                    firstName: 'LinkedIn',
-                    lastName: 'User',
-                    email: 'mobile@example.com',
-                    profilePicture: 'https://randomuser.me/api/portraits/lego/1.jpg'
-                };
-                
-                // Store the user profile and authentication status
-                localStorage.setItem('linkedInUser', JSON.stringify(fallbackUser));
-                localStorage.setItem('isAuthenticated', 'true');
-                localStorage.setItem('authTime', new Date().toISOString());
-                
-                // Store conference details in the expected location
-                localStorage.setItem('conferenceId', conferenceId);
-                localStorage.setItem('conferenceName', conferenceName);
-                localStorage.setItem('conferenceLocation', conferenceLocation);
-                
-                // Redirect to connections page
-                window.location.href = 'connections.html';
             };
             
-            // Try deep linking to LinkedIn app
-            window.location.href = appUri;
+            // Special handling for iOS and Android
+            const isAndroid = /Android/i.test(navigator.userAgent);
+            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
             
-            // If app doesn't open in time, try the simpler deep link
-            setTimeout(() => {
-                window.location.href = fallbackUri;
-            }, 1000);
+            // Construct LinkedIn OAuth URL for authorization
+            const webAuthUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
+                `response_type=code&` +
+                `client_id=${LINKEDIN_CLIENT_ID}&` +
+                `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+                `scope=${encodeURIComponent(LINKEDIN_SCOPES)}&` +
+                `state=${encodeURIComponent(JSON.stringify(stateData))}`;
             
-            // If still no response, use web fallback
-            setTimeout(webFallback, 2000);
+            // Try to use platform-specific deep links first
+            if (isAndroid) {
+                // Android Intent URL that should open LinkedIn app if installed
+                // or fall back to browser if not
+                const intentUrl = `intent://www.linkedin.com/oauth/v2/authorization?` +
+                    `response_type=code&` +
+                    `client_id=${LINKEDIN_CLIENT_ID}&` +
+                    `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+                    `scope=${encodeURIComponent(LINKEDIN_SCOPES)}&` +
+                    `state=${encodeURIComponent(JSON.stringify(stateData))}` +
+                    `#Intent;scheme=https;package=com.linkedin.android;end`;
+                
+                window.location.href = intentUrl;
+                
+                // Fallback to browser after a short delay if intent didn't work
+                setTimeout(() => {
+                    window.location.href = webAuthUrl;
+                }, 1500);
+            } 
+            else if (isIOS) {
+                // Try to use the LinkedIn app's custom URL scheme
+                try {
+                    // For iOS we'll try to use Universal Links which should open in the app if installed
+                    window.location.href = `https://www.linkedin.com/oauth/v2/authorization?` +
+                        `response_type=code&` +
+                        `client_id=${LINKEDIN_CLIENT_ID}&` +
+                        `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+                        `scope=${encodeURIComponent(LINKEDIN_SCOPES)}&` +
+                        `state=${encodeURIComponent(JSON.stringify(stateData))}`;
+                } catch (e) {
+                    console.error('Error opening LinkedIn app:', e);
+                    // Fallback to browser
+                    window.location.href = webAuthUrl;
+                }
+            }
+            else {
+                // For all other platforms, use the standard OAuth URL
+                window.location.href = webAuthUrl;
+            }
+            
+            // Add a message to inform the user what's happening
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.innerHTML = `
+                <div class="info" style="background-color: #e3f2fd; color: #0277bd; padding: 10px; border-radius: 4px;">
+                    Opening LinkedIn for authentication. If nothing happens in a few seconds, 
+                    <a href="${webAuthUrl}" style="color: #0277bd; font-weight: bold;">click here</a>.
+                </div>
+            `;
+            statusMessage.style.display = 'block';
         }
         
         // Helper function to get previous email for login hint
