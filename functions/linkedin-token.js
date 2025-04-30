@@ -20,7 +20,6 @@ exports.handler = async function(event, context) {
       grant_type: 'authorization_code',
       code: code,
       client_id: process.env.LINKEDIN_CLIENT_ID || '86bd4udvjkab6n', // Fallback to hard-coded values if env vars not set
-      client_secret: process.env.LINKEDIN_CLIENT_SECRET || 'WPL_AP1.OgDnI5N7j6k3LOI2.3u7pLw==',
       redirect_uri: process.env.REDIRECT_URI || 'https://cholebhature.netlify.app/docs/user/callback.html'
     };
     
@@ -30,11 +29,19 @@ exports.handler = async function(event, context) {
       console.log('Using PKCE flow with code_verifier');
     }
     
+    // LinkedIn requires client_secret even when using PKCE
+    // Using client credentials in the Authorization header as recommended by OAuth 2.0
+    const clientSecret = process.env.LINKEDIN_CLIENT_SECRET || 'WPL_AP1.OgDnI5N7j6k3LOI2.3u7pLw==';
+    
+    // Create authorization string: "Basic " + base64(client_id:client_secret)
+    const authString = Buffer.from(`${tokenParams.client_id}:${clientSecret}`).toString('base64');
+    
     // Exchange the code for a token
     const tokenResponse = await axios.post('https://www.linkedin.com/oauth/v2/accessToken', null, {
       params: tokenParams,
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${authString}`
       }
     });
 
