@@ -237,7 +237,7 @@ function generateConferenceQR() {
 // Function to save a new conference to the database
 async function saveConferenceToDatabase(id, name, location, qrData) {
     try {
-        // First save the conference
+        // First save the conference with all details
         await fetch('/api/conference/save-qr', {
             method: 'POST',
             headers: {
@@ -245,6 +245,8 @@ async function saveConferenceToDatabase(id, name, location, qrData) {
             },
             body: JSON.stringify({
                 conferenceId: id,
+                name: name,
+                location: location,
                 qrData
             })
         });
