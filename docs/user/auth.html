@@ -365,40 +365,41 @@
                 `scope=${encodeURIComponent(LINKEDIN_SCOPES)}&` +
                 `state=${encodeURIComponent(JSON.stringify(stateData))}`;
             
-            // Try to use platform-specific deep links first
+            // Update LinkedIn app deep linking logic
             if (isAndroid) {
-                // Android Intent URL that should open LinkedIn app if installed
-                // or fall back to browser if not
-                const intentUrl = `intent://www.linkedin.com/oauth/v2/authorization?` +
-                    `response_type=code&` +
-                    `client_id=${LINKEDIN_CLIENT_ID}&` +
-                    `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
-                    `scope=${encodeURIComponent(LINKEDIN_SCOPES)}&` +
-                    `state=${encodeURIComponent(JSON.stringify(stateData))}` +
-                    `#Intent;scheme=https;package=com.linkedin.android;end`;
+                // Direct LinkedIn app URL - this works better than intent:// on many Android devices
+                const linkedInAppUrl = `linkedin://oauth?client_id=${LINKEDIN_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${encodeURIComponent(JSON.stringify(stateData))}&scope=${encodeURIComponent(LINKEDIN_SCOPES)}`;
                 
-                window.location.href = intentUrl;
+                // Try opening the LinkedIn app directly
+                window.location.href = linkedInAppUrl;
                 
-                // Fallback to browser after a short delay if intent didn't work
+                // Fallback to web auth after a short delay
                 setTimeout(() => {
-                    window.location.href = webAuthUrl;
+                    // Check if we're still on the same page (app didn't open)
+                    if (document.getElementById('linkedinAppAuth')) {
+                        window.location.href = webAuthUrl;
+                    }
                 }, 1500);
             } 
             else if (isIOS) {
-                // Try to use the LinkedIn app's custom URL scheme
-                try {
-                    // For iOS we'll try to use Universal Links which should open in the app if installed
-                    window.location.href = `https://www.linkedin.com/oauth/v2/authorization?` +
-                        `response_type=code&` +
-                        `client_id=${LINKEDIN_CLIENT_ID}&` +
-                        `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
-                        `scope=${encodeURIComponent(LINKEDIN_SCOPES)}&` +
-                        `state=${encodeURIComponent(JSON.stringify(stateData))}`;
-                } catch (e) {
-                    console.error('Error opening LinkedIn app:', e);
-                    // Fallback to browser
+                // Try the LinkedIn custom URL scheme for iOS
+                const linkedInAppUrl = `linkedin://oauth?client_id=${LINKEDIN_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${encodeURIComponent(JSON.stringify(stateData))}&scope=${encodeURIComponent(LINKEDIN_SCOPES)}`;
+                
+                // Create an invisible iframe to try opening the LinkedIn app
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                iframe.src = linkedInAppUrl;
+                document.body.appendChild(iframe);
+                
+                // Fallback to web auth after a short delay
+                setTimeout(() => {
+                    // Remove the iframe
+                    if (document.body.contains(iframe)) {
+                        document.body.removeChild(iframe);
+                    }
+                    // Redirect to web auth
                     window.location.href = webAuthUrl;
-                }
+                }, 1500);
             }
             else {
                 // For all other platforms, use the standard OAuth URL
