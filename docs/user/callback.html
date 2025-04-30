@@ -145,6 +145,10 @@
         const error = urlParams.get('error');
         const errorDescription = urlParams.get('error_description');
         
+        // Get code verifier from localStorage (for PKCE)
+        const codeVerifier = localStorage.getItem('linkedin_code_verifier');
+        console.log('PKCE: Retrieved code_verifier from localStorage:', codeVerifier ? `Found (${codeVerifier.length} chars)` : 'Not found');
+        
         // Check if this is a LinkedIn app callback
         const isAppCallback = checkForLinkedInAppCallback();
         
@@ -258,7 +262,7 @@
                     conferenceName,
                     conferenceLocation,
                     // Add code_verifier for PKCE flow if available
-                    code_verifier: localStorage.getItem('linkedin_code_verifier') || undefined
+                    code_verifier: codeVerifier || undefined
                 })
             })
             .then(async response => {
