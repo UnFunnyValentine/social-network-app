@@ -8,21 +8,31 @@ exports.handler = async function(event, context) {
 
   try {
     const data = JSON.parse(event.body);
-    const { code, fromApp, conferenceId, conferenceName, conferenceLocation } = data;
+    const { code, fromApp, conferenceId, conferenceName, conferenceLocation, code_verifier } = data;
     
     console.log('Received code:', code);
     console.log('fromApp:', fromApp);
     console.log('Conference details:', { conferenceId, conferenceName, conferenceLocation });
+    console.log('PKCE flow:', code_verifier ? 'Yes' : 'No');
+    
+    // Create params object for token request
+    const tokenParams = {
+      grant_type: 'authorization_code',
+      code: code,
+      client_id: process.env.LINKEDIN_CLIENT_ID || '86bd4udvjkab6n', // Fallback to hard-coded values if env vars not set
+      client_secret: process.env.LINKEDIN_CLIENT_SECRET || 'WPL_AP1.OgDnI5N7j6k3LOI2.3u7pLw==',
+      redirect_uri: process.env.REDIRECT_URI || 'https://cholebhature.netlify.app/docs/user/callback.html'
+    };
+    
+    // Add code_verifier for PKCE flow if provided
+    if (code_verifier) {
+      tokenParams.code_verifier = code_verifier;
+      console.log('Using PKCE flow with code_verifier');
+    }
     
     // Exchange the code for a token
     const tokenResponse = await axios.post('https://www.linkedin.com/oauth/v2/accessToken', null, {
-      params: {
-        grant_type: 'authorization_code',
-        code: code,
-        client_id: process.env.LINKEDIN_CLIENT_ID || '86bd4udvjkab6n', // Fallback to hard-coded values if env vars not set
-        client_secret: process.env.LINKEDIN_CLIENT_SECRET || 'WPL_AP1.OgDnI5N7j6k3LOI2.3u7pLw==',
-        redirect_uri: process.env.REDIRECT_URI || 'https://cholebhature.netlify.app/docs/user/callback.html'
-      },
+      params: tokenParams,
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
       }
