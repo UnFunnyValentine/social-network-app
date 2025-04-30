@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Processing LinkedIn Authentication</title>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Add LinkedIn app deep linking metadata -->
+    <meta property="al:android:url" content="linkedin://login-success" />
+    <meta property="al:android:package" content="com.linkedin.android" />
+    <meta property="al:android:app_name" content="LinkedIn" />
+    <meta property="al:ios:url" content="linkedin://login-success" />
+    <meta property="al:ios:app_store_id" content="288429040" />
+    <meta property="al:ios:app_name" content="LinkedIn" />
     <style>
         body {
             font-family: 'Montserrat', sans-serif;
@@ -111,6 +118,12 @@
             if (type) statusEl.classList.add(type);
             statusEl.style.display = 'block';
         }
+        
+        // Check if we're being loaded within the LinkedIn mobile app
+        function isLinkedInApp() {
+            const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+            return /LinkedIn/i.test(userAgent);
+        }
 
         logDebug('Callback using redirect URI:', REDIRECT_URI);
         
@@ -123,6 +136,7 @@
         
         // Log current URL for debugging
         console.log('Current URL:', window.location.href);
+        console.log('Is LinkedIn App:', isLinkedInApp());
         
         // For debugging Netlify environment
         console.log('Using Netlify environment:');
@@ -205,7 +219,16 @@
                     
                     showStatus('Using fallback profile data. Redirecting...', 'info');
                     setTimeout(() => {
-                        window.location.href = './connections.html';
+                        if (isLinkedInApp()) {
+                            // Try deep linking back to the LinkedIn app
+                            window.location.href = 'linkedin://connections-app';
+                            // Fallback in case deep linking fails
+                            setTimeout(() => {
+                                window.location.href = './connections.html';
+                            }, 1000);
+                        } else {
+                            window.location.href = './connections.html';
+                        }
                     }, 2000);
                     return;
                 }
@@ -226,7 +249,16 @@
                 // Redirect to the connections page
                 showStatus('Redirecting to connections page...', 'info');
                 setTimeout(() => {
-                    window.location.href = './connections.html';
+                    if (isLinkedInApp()) {
+                        // Try deep linking back to the LinkedIn app
+                        window.location.href = 'linkedin://connections-app';
+                        // Fallback in case deep linking fails
+                        setTimeout(() => {
+                            window.location.href = './connections.html';
+                        }, 1000);
+                    } else {
+                        window.location.href = './connections.html';
+                    }
                 }, 1000);
             })
             .catch(error => {
@@ -262,8 +294,31 @@
                 }, 2000);
             });
         } else {
-            // Redirect to auth page if no code or error
-            window.location.href = './auth.html';
+            // Check for previously stored valid auth data
+            const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+            const userData = localStorage.getItem('linkedInUser');
+            
+            if (isAuthenticated && userData) {
+                showStatus('Found existing authentication data. Redirecting...', 'info');
+                
+                // Get conference details from session storage
+                const conferenceId = sessionStorage.getItem('conferenceId') || 'conf_default';
+                const conferenceName = sessionStorage.getItem('conferenceName') || 'Sample Conference';
+                const conferenceLocation = sessionStorage.getItem('conferenceLocation') || 'Virtual Event';
+                
+                // Store conference details in localStorage for the connections page
+                localStorage.setItem('conferenceId', conferenceId);
+                localStorage.setItem('conferenceName', conferenceName);
+                localStorage.setItem('conferenceLocation', conferenceLocation);
+                
+                // Redirect to connections page
+                setTimeout(() => {
+                    window.location.href = './connections.html';
+                }, 1000);
+            } else {
+                // Redirect to auth page if no code or error and no stored auth
+                window.location.href = './auth.html';
+            }
         }
         
         // Debug mode - Show debug panel when URL includes debug=true
