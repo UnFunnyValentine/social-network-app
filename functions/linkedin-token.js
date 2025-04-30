@@ -8,9 +8,11 @@ exports.handler = async function(event, context) {
 
   try {
     const data = JSON.parse(event.body);
-    const { code } = data;
+    const { code, fromApp, conferenceId, conferenceName, conferenceLocation } = data;
     
     console.log('Received code:', code);
+    console.log('fromApp:', fromApp);
+    console.log('Conference details:', { conferenceId, conferenceName, conferenceLocation });
     
     // Exchange the code for a token
     const tokenResponse = await axios.post('https://www.linkedin.com/oauth/v2/accessToken', null, {
@@ -26,7 +28,7 @@ exports.handler = async function(event, context) {
       }
     });
 
-    console.log('Token response received:', tokenResponse.data);
+    console.log('Token response received');
     const accessToken = tokenResponse.data.access_token;
     
     // IMPORTANT: We need to use the endpoints that match the scopes we have
@@ -42,7 +44,7 @@ exports.handler = async function(event, context) {
         }
       });
       
-      console.log('Userinfo response received:', userinfoResponse.data);
+      console.log('Userinfo response received');
       
       // Extract data from OpenID userinfo response
       userData = {
@@ -72,7 +74,7 @@ exports.handler = async function(event, context) {
           }
         });
         
-        console.log('Basic profile response received:', profileResponse.data);
+        console.log('Basic profile response received');
         
         // Extract basic profile data
         userData = {
@@ -92,9 +94,34 @@ exports.handler = async function(event, context) {
             }
           });
           
-          userData.profilePicture = profilePicResponse.data.profilePicture?.['displayImage~']?.elements?.[0]?.identifiers?.[0]?.identifier || null;
+          const pictureElements = profilePicResponse.data.profilePicture?.['displayImage~']?.elements;
+          if (pictureElements && pictureElements.length > 0) {
+            // Sort by width to get the largest image
+            const sortedElements = [...pictureElements].sort((a, b) => 
+              (b.data?.['com.linkedin.digitalmedia.mediaartifact.StillImage']?.storageSize?.width || 0) - 
+              (a.data?.['com.linkedin.digitalmedia.mediaartifact.StillImage']?.storageSize?.width || 0)
+            );
+            
+            // Get the identifier of the largest image
+            userData.profilePicture = sortedElements[0]?.identifiers?.[0]?.identifier || null;
+          } else {
+            userData.profilePicture = null;
+          }
         } catch (picError) {
           console.log('Error getting profile picture:', picError.message);
+          
+          // Try the alternate picture endpoint
+          try {
+            const altPicResponse = await axios.get('https://api.linkedin.com/v2/me?projection=(profilePicture(displayImage~digitalmediaAsset:playableStreams))', {
+              headers: {
+                'Authorization': `Bearer ${accessToken}`
+              }
+            });
+            
+            userData.profilePicture = extractProfilePictureUrl(altPicResponse.data);
+          } catch (altPicError) {
+            console.log('Error getting alternate profile picture:', altPicError.message);
+          }
         }
         
         // Try to get email separately
@@ -117,18 +144,19 @@ exports.handler = async function(event, context) {
         console.log('Profile endpoint error:', profileError.message);
         console.log('Profile error details:', profileError.response?.data);
         
-        // Create fallback user data if all API calls fail
-        userData = {
-          id: `fallback_${Date.now()}`,
-          firstName: 'LinkedIn',
-          lastName: 'User',
-          name: 'LinkedIn User',
-          email: 'email@example.com',
-          profilePicture: null,
-          headline: 'LinkedIn User',
-          linkedinUrl: `search:fallback_${Date.now()}` // Fallback URL
-        };
+        // Instead of using fallback data, throw an error to be handled properly
+        throw new Error('Failed to retrieve LinkedIn profile data. Please try again.');
       }
+    }
+    
+    // Add conference details to the response
+    userData.conferenceId = conferenceId;
+    userData.conferenceName = conferenceName;
+    userData.conferenceLocation = conferenceLocation;
+    
+    // For debugging: Note if this was an app authentication
+    if (fromApp) {
+      userData.authenticatedVia = 'linkedinApp';
     }
 
     // Return the user data
@@ -147,7 +175,7 @@ exports.handler = async function(event, context) {
       console.log('Error status:', error.response.status);
     }
     
-    // Return a more user-friendly error that will be shown to users
+    // Return an error response with a clear error message
     return {
       statusCode: 200, // Return 200 even on error to handle it client-side
       headers: {
@@ -156,18 +184,43 @@ exports.handler = async function(event, context) {
       },
       body: JSON.stringify({ 
         status: 'error',
-        message: 'Authentication error. Please try again.',
-        id: 'default_user_' + Date.now(),
-        firstName: 'Guest',
-        lastName: 'User',
-        email: 'guest@example.com',
-        name: 'Guest User',
-        profilePicture: 'https://randomuser.me/api/portraits/lego/1.jpg',
-        error: error.message
+        message: 'Authentication failed. Please try again using the standard sign-in option.',
+        error: error.message,
+        errorCode: error.response?.status || 500
       })
     };
   }
 };
+
+/**
+ * Attempts to extract a profile picture URL from the LinkedIn API response
+ */
+function extractProfilePictureUrl(data) {
+  // Try several known paths to find the profile picture
+  try {
+    // Path 1: displayImage~elements
+    if (data.profilePicture?.['displayImage~']?.elements?.length > 0) {
+      const elements = data.profilePicture['displayImage~'].elements;
+      // Sort by size to get largest
+      const sorted = [...elements].sort((a, b) => 
+        (b.data?.['com.linkedin.digitalmedia.mediaartifact.StillImage']?.storageSize?.width || 0) -
+        (a.data?.['com.linkedin.digitalmedia.mediaartifact.StillImage']?.storageSize?.width || 0)
+      );
+      
+      return sorted[0]?.identifiers?.[0]?.identifier;
+    }
+    
+    // Path 2: digitalmediaAsset:playableStreams
+    if (data.profilePicture?.['digitalmediaAsset:playableStreams']?.elements?.length > 0) {
+      const elements = data.profilePicture['digitalmediaAsset:playableStreams'].elements;
+      return elements[0]?.identifiers?.[0]?.identifier;
+    }
+  } catch (e) {
+    console.log('Error extracting profile picture:', e.message);
+  }
+  
+  return null;
+}
 
 /**
  * Determines the best LinkedIn profile URL for a user and adds it to userData
@@ -185,20 +238,20 @@ async function determineLinkedInProfileUrl(accessToken, userData) {
       }
     });
     
-    console.log('ME endpoint response:', meResponse.data);
+    console.log('ME endpoint response received');
     
     // Check for vanity name that doesn't look like an internal ID
     if (meResponse.data.vanityName && !meResponse.data.vanityName.match(/^[A-Z0-9]{8,12}$/i)) {
       userData.linkedinUrl = `https://www.linkedin.com/in/${meResponse.data.vanityName}`;
       userData.vanityName = meResponse.data.vanityName;
-      console.log('Found valid vanity name:', userData.linkedinUrl);
+      console.log('Found valid vanity name');
       return;
     }
     
     // Check for public profile URL
     if (meResponse.data.publicProfileUrl && meResponse.data.publicProfileUrl.includes('/in/')) {
       userData.linkedinUrl = meResponse.data.publicProfileUrl;
-      console.log('Found public profile URL:', userData.linkedinUrl);
+      console.log('Found public profile URL');
       return;
     }
   } catch (err) {
