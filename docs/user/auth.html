@@ -317,144 +317,86 @@
             }, 500);
         }
         
-        // Function to generate a random string for PKCE
-        function generateRandomString(length) {
-            const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-            let text = '';
-            for (let i = 0; i < length; i++) {
-                text += possible.charAt(Math.floor(Math.random() * possible.length));
-            }
-            return text;
-        }
-
-        // Function to create SHA-256 hash
-        async function sha256(plain) {
-            const encoder = new TextEncoder();
-            const data = encoder.encode(plain);
-            const hash = await crypto.subtle.digest('SHA-256', data);
-            return hash;
-        }
-
-        // Function to convert array buffer to base64 URL encoded string
-        function base64URLEncode(buffer) {
-            return btoa(String.fromCharCode.apply(null, new Uint8Array(buffer)))
-                .replace(/\+/g, '-')
-                .replace(/\//g, '_')
-                .replace(/=+$/, '');
-        }
-
         // Function to authenticate using LinkedIn Mobile App
-        async function loginWithLinkedInApp() {
+        function loginWithLinkedInApp() {
             // Show loading in app button
             const appAuthButton = document.getElementById('linkedinAppAuth');
             appAuthButton.innerHTML = `
                 <span class="loading" style="border-top-color: #0077b5;"></span>
-                Preparing LinkedIn Auth...
+                Opening LinkedIn...
             `;
             
-            try {
-                // Store conference details in localStorage for retrieval
-                localStorage.setItem('pendingConferenceId', conferenceId);
-                localStorage.setItem('pendingConferenceName', conferenceName);
-                localStorage.setItem('pendingConferenceLocation', conferenceLocation);
-                
-                // Create a timestamp to identify this authentication attempt
-                const authTimestamp = Date.now();
-                localStorage.setItem('authTimestamp', authTimestamp);
-                
-                // LinkedIn OAuth Configuration
-                const LINKEDIN_CLIENT_ID = '86bd4udvjkab6n';
-                
-                // Set the redirect URI to an absolute URL based on current origin
-                let REDIRECT_URI = 'https://cholebhature.netlify.app/docs/user/callback.html';
-                
-                // For local development, allow overriding with localhost
-                if (window.location.hostname === 'localhost') {
-                    REDIRECT_URI = `${window.location.origin}/docs/user/callback.html`;
-                }
-                
-                // Required LinkedIn API scopes - must match what's configured in LinkedIn Developer Portal
-                const LINKEDIN_SCOPES = [
-                    'openid',
-                    'profile',
-                    'r_basicprofile',
-                    'email'
-                ].join(' ');
-                
-                // Create state parameter with conference details
-                const stateData = {
-                    conferenceId,
-                    conferenceName,
-                    conferenceLocation,
-                    timestamp: authTimestamp,
-                    fromApp: true
-                };
-                
-                // Implement PKCE (Proof Key for Code Exchange)
-                // Generate a code verifier (between 43-128 characters)
-                const codeVerifier = generateRandomString(96);
-                
-                // Store the code verifier for later use when exchanging the authorization code
-                localStorage.setItem('linkedin_code_verifier', codeVerifier);
-                
-                // Generate code challenge from the code verifier
-                const codeChallengeBuffer = await sha256(codeVerifier);
-                const codeChallenge = base64URLEncode(codeChallengeBuffer);
-                
-                // Debug log
-                console.log('PKCE Flow: Verifier length:', codeVerifier.length, 'Challenge length:', codeChallenge.length);
-                
-                // Construct LinkedIn OAuth URL with PKCE parameters
-                const authUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
-                    `response_type=code&` +
-                    `client_id=${LINKEDIN_CLIENT_ID}&` +
-                    `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
-                    `scope=${encodeURIComponent(LINKEDIN_SCOPES)}&` +
-                    `state=${encodeURIComponent(JSON.stringify(stateData))}&` +
-                    `code_challenge=${encodeURIComponent(codeChallenge)}&` +
-                    `code_challenge_method=S256`;
-                
-                // Update button text
-                appAuthButton.innerHTML = `
-                    <span class="loading" style="border-top-color: #0077b5;"></span>
-                    Opening LinkedIn...
-                `;
-                
-                // Log full auth URL for debugging
-                console.log('Auth URL:', authUrl);
-                
-                // Open the auth URL in the system browser
-                // This is the recommended approach for OAuth 2.0 in mobile apps
-                window.location.href = authUrl;
-                
-                // Add a message to inform the user what's happening
-                const statusMessage = document.getElementById('statusMessage');
-                statusMessage.innerHTML = `
-                    <div class="info" style="background-color: #e3f2fd; color: #0277bd; padding: 10px; border-radius: 4px;">
-                        Opening LinkedIn authentication in your browser. Sign in with your LinkedIn credentials and authorize the application.
-                    </div>
-                `;
-                statusMessage.style.display = 'block';
-            } catch (error) {
-                console.error('Error starting LinkedIn authentication:', error);
-                
-                // Show error message
-                const statusMessage = document.getElementById('statusMessage');
-                statusMessage.innerHTML = `
-                    <div class="error" style="background-color: #ffebee; color: #c62828; padding: 10px; border-radius: 4px;">
-                        Error starting LinkedIn authentication: ${error.message}. Please try again or use the standard sign-in method.
-                    </div>
-                `;
-                statusMessage.style.display = 'block';
-                
-                // Reset button
-                appAuthButton.innerHTML = `
-                    <svg class="linkedin-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#0077b5">
-                        <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/>
-                    </svg>
-                    Use LinkedIn App
-                `;
+            // Store conference details in localStorage for retrieval
+            localStorage.setItem('pendingConferenceId', conferenceId);
+            localStorage.setItem('pendingConferenceName', conferenceName);
+            localStorage.setItem('pendingConferenceLocation', conferenceLocation);
+            
+            // Create a timestamp to identify this authentication attempt
+            const authTimestamp = Date.now();
+            localStorage.setItem('authTimestamp', authTimestamp);
+            
+            // LinkedIn OAuth Configuration
+            const LINKEDIN_CLIENT_ID = '86bd4udvjkab6n';
+            
+            // Set the redirect URI to an absolute URL based on current origin
+            let REDIRECT_URI = 'https://cholebhature.netlify.app/docs/user/callback.html';
+            
+            // For local development, allow overriding with localhost
+            if (window.location.hostname === 'localhost') {
+                REDIRECT_URI = `${window.location.origin}/docs/user/callback.html`;
             }
+            
+            // Required LinkedIn API scopes - must match what's configured in LinkedIn Developer Portal
+            const LINKEDIN_SCOPES = [
+                'openid',
+                'profile',
+                'r_basicprofile',
+                'email'
+            ].join(' ');
+            
+            // Create state parameter with conference details
+            const stateData = {
+                conferenceId,
+                conferenceName,
+                conferenceLocation,
+                timestamp: authTimestamp,
+                fromApp: true
+            };
+            
+            // Check if user was previously authenticated with LinkedIn
+            const previouslyAuthenticated = localStorage.getItem('isAuthenticated') === 'true' && 
+                                         localStorage.getItem('linkedInUser');
+            
+            // Construct LinkedIn OAuth URL
+            const linkedInAuthUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
+                `response_type=code&` +
+                `client_id=${LINKEDIN_CLIENT_ID}&` +
+                `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+                `scope=${encodeURIComponent(LINKEDIN_SCOPES)}&` +
+                // Add prompt parameter - "none" tries to use existing session without prompting
+                // If user wasn't previously authenticated, use "select_account" to ensure they can choose account
+                `prompt=${previouslyAuthenticated ? 'none' : 'select_account'}&` +
+                // Add login_hint if we have a previous email address
+                `${getPreviousEmail()}&` +
+                `state=${encodeURIComponent(JSON.stringify(stateData))}`;
+            
+            // Update button text
+            appAuthButton.innerHTML = `
+                <span class="loading" style="border-top-color: #0077b5;"></span>
+                Opening LinkedIn...
+            `;
+            
+            // Redirect to LinkedIn authorization
+            window.location.href = linkedInAuthUrl;
+            
+            // Add a message to inform the user what's happening
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.innerHTML = `
+                <div class="info" style="background-color: #e3f2fd; color: #0277bd; padding: 10px; border-radius: 4px;">
+                    Opening LinkedIn authentication. If you're already signed in, you'll be redirected automatically.
+                </div>
+            `;
+            statusMessage.style.display = 'block';
         }
         
         // Helper function to get previous email for login hint
