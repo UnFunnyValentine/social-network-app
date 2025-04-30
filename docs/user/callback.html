@@ -149,9 +149,31 @@
             if (state) {
                 conferenceDetails = JSON.parse(decodeURIComponent(state));
                 logDebug('Parsed conference details from state:', conferenceDetails);
+                
+                // Check if this is a deep link from the app
+                if (conferenceDetails.fromApp) {
+                    logDebug('Detected app authentication flow', conferenceDetails);
+                }
             }
         } catch (error) {
             console.error('Error parsing state parameter:', error);
+        }
+        
+        // Try to get stored pending conference details
+        // These could have been saved during app authentication
+        function getPendingConferenceDetails() {
+            return {
+                conferenceId: localStorage.getItem('pendingConferenceId'),
+                conferenceName: localStorage.getItem('pendingConferenceName'),
+                conferenceLocation: localStorage.getItem('pendingConferenceLocation')
+            };
+        }
+
+        // Clear pending conference details
+        function clearPendingConferenceDetails() {
+            localStorage.removeItem('pendingConferenceId');
+            localStorage.removeItem('pendingConferenceName');
+            localStorage.removeItem('pendingConferenceLocation');
         }
         
         // Show error if one exists
@@ -167,10 +189,33 @@
             // Exchange authorization code for access token using our backend
             showStatus('Exchanging authorization code for access token...', 'info');
             
-            // Get conference details from state or fallback to storage
-            const conferenceId = conferenceDetails.conferenceId || sessionStorage.getItem('conferenceId') || 'conf_default';
-            const conferenceName = conferenceDetails.conferenceName || sessionStorage.getItem('conferenceName') || 'Sample Conference';
-            const conferenceLocation = conferenceDetails.conferenceLocation || sessionStorage.getItem('conferenceLocation') || 'Virtual Event';
+            // Get conference details from state, pending details, or fallback to storage
+            let conferenceId, conferenceName, conferenceLocation;
+
+            // Check for details passed in state parameter
+            if (conferenceDetails.conferenceId) {
+                conferenceId = conferenceDetails.conferenceId;
+                conferenceName = conferenceDetails.conferenceName;
+                conferenceLocation = conferenceDetails.conferenceLocation;
+                logDebug('Using conference details from state parameter', { conferenceId, conferenceName, conferenceLocation });
+            } else {
+                // Check for pending details (from app auth)
+                const pendingDetails = getPendingConferenceDetails();
+                if (pendingDetails.conferenceId) {
+                    conferenceId = pendingDetails.conferenceId;
+                    conferenceName = pendingDetails.conferenceName;
+                    conferenceLocation = pendingDetails.conferenceLocation;
+                    logDebug('Using pending conference details from app auth', { conferenceId, conferenceName, conferenceLocation });
+                    // Clear pending details once used
+                    clearPendingConferenceDetails();
+                } else {
+                    // Fall back to session storage
+                    conferenceId = sessionStorage.getItem('conferenceId') || 'conf_default';
+                    conferenceName = sessionStorage.getItem('conferenceName') || 'Sample Conference';
+                    conferenceLocation = sessionStorage.getItem('conferenceLocation') || 'Virtual Event';
+                    logDebug('Using conference details from session storage', { conferenceId, conferenceName, conferenceLocation });
+                }
+            }
             
             logDebug('Conference data in callback:', { conferenceId, conferenceName, conferenceLocation });
             
