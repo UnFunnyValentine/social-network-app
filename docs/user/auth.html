@@ -317,196 +317,138 @@
             }, 500);
         }
         
+        // Function to generate a random string for PKCE
+        function generateRandomString(length) {
+            const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let text = '';
+            for (let i = 0; i < length; i++) {
+                text += possible.charAt(Math.floor(Math.random() * possible.length));
+            }
+            return text;
+        }
+
+        // Function to create SHA-256 hash
+        async function sha256(plain) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(plain);
+            const hash = await crypto.subtle.digest('SHA-256', data);
+            return hash;
+        }
+
+        // Function to convert array buffer to base64 URL encoded string
+        function base64URLEncode(buffer) {
+            return btoa(String.fromCharCode.apply(null, new Uint8Array(buffer)))
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=+$/, '');
+        }
+
         // Function to authenticate using LinkedIn Mobile App
-        function loginWithLinkedInApp() {
+        async function loginWithLinkedInApp() {
             // Show loading in app button
             const appAuthButton = document.getElementById('linkedinAppAuth');
             appAuthButton.innerHTML = `
                 <span class="loading" style="border-top-color: #0077b5;"></span>
-                Opening LinkedIn App...
+                Preparing LinkedIn Auth...
             `;
             
-            // Store conference details in localStorage for retrieval
-            localStorage.setItem('pendingConferenceId', conferenceId);
-            localStorage.setItem('pendingConferenceName', conferenceName);
-            localStorage.setItem('pendingConferenceLocation', conferenceLocation);
-            
-            // Create a timestamp to identify this authentication attempt
-            const authTimestamp = Date.now();
-            localStorage.setItem('authTimestamp', authTimestamp);
-            
-            // LinkedIn OAuth Configuration
-            const LINKEDIN_CLIENT_ID = '86bd4udvjkab6n';
-            
-            // Set the redirect URI to an absolute URL based on current origin
-            let REDIRECT_URI = 'https://cholebhature.netlify.app/docs/user/callback.html';
-            
-            // For local development, allow overriding with localhost
-            if (window.location.hostname === 'localhost') {
-                REDIRECT_URI = `${window.location.origin}/docs/user/callback.html`;
-            }
-            
-            // Required LinkedIn API scopes - must match what's configured in LinkedIn Developer Portal
-            const LINKEDIN_SCOPES = [
-                'openid',
-                'profile',
-                'r_basicprofile',
-                'email'
-            ].join(' ');
-            
-            // Create state parameter with conference details
-            const stateData = {
-                conferenceId,
-                conferenceName,
-                conferenceLocation,
-                timestamp: authTimestamp,
-                fromApp: true
-            };
-            
-            // Special handling for iOS and Android
-            const isAndroid = /Android/i.test(navigator.userAgent);
-            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-            
-            // Construct LinkedIn OAuth URL for authorization
-            const webAuthUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
-                `response_type=code&` +
-                `client_id=${LINKEDIN_CLIENT_ID}&` +
-                `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
-                `scope=${encodeURIComponent(LINKEDIN_SCOPES)}&` +
-                `state=${encodeURIComponent(JSON.stringify(stateData))}`;
-
-            // Track if we've tried opening the app
-            let triedOpeningApp = false;
-            
-            // Different approach based on device platform
-            if (isAndroid) {
-                try {
-                    // Try multiple LinkedIn app URL formats for maximum compatibility
-                    const linkedInAppUrl = `linkedin://oauth?client_id=${LINKEDIN_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${encodeURIComponent(JSON.stringify(stateData))}&scope=${encodeURIComponent(LINKEDIN_SCOPES)}`;
-                    
-                    // Create a hidden anchor and trigger a click programmatically
-                    const appLink = document.createElement('a');
-                    appLink.setAttribute('href', linkedInAppUrl);
-                    appLink.style.display = 'none';
-                    document.body.appendChild(appLink);
-                    appLink.click();
-                    
-                    // Also try the direct location approach
-                    window.location.href = linkedInAppUrl;
-                    
-                    triedOpeningApp = true;
-                } catch (e) {
-                    console.error('Error trying to open LinkedIn app:', e);
+            try {
+                // Store conference details in localStorage for retrieval
+                localStorage.setItem('pendingConferenceId', conferenceId);
+                localStorage.setItem('pendingConferenceName', conferenceName);
+                localStorage.setItem('pendingConferenceLocation', conferenceLocation);
+                
+                // Create a timestamp to identify this authentication attempt
+                const authTimestamp = Date.now();
+                localStorage.setItem('authTimestamp', authTimestamp);
+                
+                // LinkedIn OAuth Configuration
+                const LINKEDIN_CLIENT_ID = '86bd4udvjkab6n';
+                
+                // Set the redirect URI to an absolute URL based on current origin
+                let REDIRECT_URI = 'https://cholebhature.netlify.app/docs/user/callback.html';
+                
+                // For local development, allow overriding with localhost
+                if (window.location.hostname === 'localhost') {
+                    REDIRECT_URI = `${window.location.origin}/docs/user/callback.html`;
                 }
                 
-                // Also try the intent URL approach as a backup
-                setTimeout(() => {
-                    if (document.getElementById('linkedinAppAuth')) {
-                        try {
-                            // Intent URL approach for Android
-                            const intentUrl = `intent://www.linkedin.com/oauth/v2/authorization?` +
-                                `response_type=code&` +
-                                `client_id=${LINKEDIN_CLIENT_ID}&` +
-                                `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
-                                `scope=${encodeURIComponent(LINKEDIN_SCOPES)}&` +
-                                `state=${encodeURIComponent(JSON.stringify(stateData))}` +
-                                `#Intent;scheme=https;package=com.linkedin.android;end`;
-                            
-                            window.location.href = intentUrl;
-                        } catch (e) {
-                            console.error('Error trying intent URL:', e);
-                        }
-                    }
-                }, 500);
+                // Required LinkedIn API scopes - must match what's configured in LinkedIn Developer Portal
+                const LINKEDIN_SCOPES = [
+                    'openid',
+                    'profile',
+                    'r_basicprofile',
+                    'email'
+                ].join(' ');
                 
-                // Final fallback to web auth after a reasonable delay
-                setTimeout(() => {
-                    if (document.getElementById('linkedinAppAuth')) {
-                        window.location.href = webAuthUrl;
-                    }
-                }, 1500);
-            } 
-            else if (isIOS) {
-                try {
-                    // Universal link approach for iOS
-                    const universalLink = `https://www.linkedin.com/oauth/v2/authorization?` +
-                        `response_type=code&` +
-                        `client_id=${LINKEDIN_CLIENT_ID}&` +
-                        `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
-                        `scope=${encodeURIComponent(LINKEDIN_SCOPES)}&` +
-                        `state=${encodeURIComponent(JSON.stringify(stateData))}`;
-                    
-                    // Also try the direct custom URL scheme for LinkedIn iOS app
-                    const linkedInAppUrl = `linkedin://oauth?client_id=${LINKEDIN_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${encodeURIComponent(JSON.stringify(stateData))}&scope=${encodeURIComponent(LINKEDIN_SCOPES)}`;
-                    
-                    // Create and click a hidden link (this sometimes works better on iOS)
-                    const appLink = document.createElement('a');
-                    appLink.setAttribute('href', linkedInAppUrl);
-                    appLink.style.display = 'none';
-                    document.body.appendChild(appLink);
-                    appLink.click();
-                    
-                    // Try the iframe approach as well
-                    const iframe = document.createElement('iframe');
-                    iframe.style.display = 'none';
-                    iframe.src = linkedInAppUrl;
-                    document.body.appendChild(iframe);
-                    
-                    // Direct location approach too (covering all bases)
-                    window.location.href = linkedInAppUrl;
-                    
-                    triedOpeningApp = true;
-                    
-                    // Remove the iframe after a short delay
-                    setTimeout(() => {
-                        if (document.body.contains(iframe)) {
-                            document.body.removeChild(iframe);
-                        }
-                        if (document.body.contains(appLink)) {
-                            document.body.removeChild(appLink);
-                        }
-                    }, 500);
-                } catch (e) {
-                    console.error('Error trying to open LinkedIn app on iOS:', e);
-                }
+                // Create state parameter with conference details
+                const stateData = {
+                    conferenceId,
+                    conferenceName,
+                    conferenceLocation,
+                    timestamp: authTimestamp,
+                    fromApp: true
+                };
                 
-                // Fallback to universal link approach
-                setTimeout(() => {
-                    if (document.getElementById('linkedinAppAuth')) {
-                        try {
-                            window.location.href = universalLink;
-                        } catch (e) {
-                            console.error('Error trying universal link:', e);
-                        }
-                    }
-                }, 800);
+                // Implement PKCE (Proof Key for Code Exchange)
+                // Generate a code verifier
+                const codeVerifier = generateRandomString(128);
                 
-                // Final fallback to web auth after a reasonable delay
-                setTimeout(() => {
-                    if (document.getElementById('linkedinAppAuth')) {
-                        window.location.href = webAuthUrl;
-                    }
-                }, 1500);
+                // Generate code challenge from the code verifier
+                const codeChallenge = await sha256(codeVerifier)
+                    .then(hash => base64URLEncode(hash));
+                
+                // Store the code verifier for later use when exchanging the authorization code
+                localStorage.setItem('linkedin_code_verifier', codeVerifier);
+                
+                // Construct LinkedIn OAuth URL with PKCE parameters
+                const authUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
+                    `response_type=code&` +
+                    `client_id=${LINKEDIN_CLIENT_ID}&` +
+                    `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+                    `scope=${encodeURIComponent(LINKEDIN_SCOPES)}&` +
+                    `state=${encodeURIComponent(JSON.stringify(stateData))}&` +
+                    `code_challenge=${encodeURIComponent(codeChallenge)}&` +
+                    `code_challenge_method=S256`;
+                
+                // Update button text
+                appAuthButton.innerHTML = `
+                    <span class="loading" style="border-top-color: #0077b5;"></span>
+                    Opening LinkedIn...
+                `;
+                
+                // Open the auth URL in the system browser
+                // This is the recommended approach for OAuth 2.0 in mobile apps
+                window.location.href = authUrl;
+                
+                // Add a message to inform the user what's happening
+                const statusMessage = document.getElementById('statusMessage');
+                statusMessage.innerHTML = `
+                    <div class="info" style="background-color: #e3f2fd; color: #0277bd; padding: 10px; border-radius: 4px;">
+                        Opening LinkedIn authentication in your browser. Sign in with your LinkedIn credentials and authorize the application.
+                    </div>
+                `;
+                statusMessage.style.display = 'block';
+            } catch (error) {
+                console.error('Error starting LinkedIn authentication:', error);
+                
+                // Show error message
+                const statusMessage = document.getElementById('statusMessage');
+                statusMessage.innerHTML = `
+                    <div class="error" style="background-color: #ffebee; color: #c62828; padding: 10px; border-radius: 4px;">
+                        Error starting LinkedIn authentication. Please try again or use the standard sign-in method.
+                    </div>
+                `;
+                statusMessage.style.display = 'block';
+                
+                // Reset button
+                appAuthButton.innerHTML = `
+                    <svg class="linkedin-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#0077b5">
+                        <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/>
+                    </svg>
+                    Use LinkedIn App
+                `;
             }
-            else {
-                // For all other platforms, use the standard OAuth URL
-                window.location.href = webAuthUrl;
-            }
-            
-            // Add a message to inform the user what's happening
-            const statusMessage = document.getElementById('statusMessage');
-            statusMessage.innerHTML = `
-                <div class="info" style="background-color: #e3f2fd; color: #0277bd; padding: 10px; border-radius: 4px;">
-                    Trying to open LinkedIn app for authentication. If nothing happens in a few seconds, 
-                    <a href="${webAuthUrl}" style="color: #0277bd; font-weight: bold;">click here</a> to continue in browser.
-                </div>
-            `;
-            statusMessage.style.display = 'block';
-            
-            // Add event listener to the manual link for analytics tracking
-            statusMessage.querySelector('a').addEventListener('click', function(e) {
-                console.log('User manually clicked web auth fallback link');
-            });
         }
         
         // Helper function to get previous email for login hint
