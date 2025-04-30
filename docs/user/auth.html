@@ -5,13 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LinkedIn Authentication</title>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
-    <!-- Add LinkedIn app deep linking metadata -->
-    <meta property="al:android:url" content="linkedin://login-success" />
+    <!-- Enhanced LinkedIn app deep linking metadata -->
+    <meta property="al:android:url" content="linkedin://authorize" />
     <meta property="al:android:package" content="com.linkedin.android" />
     <meta property="al:android:app_name" content="LinkedIn" />
-    <meta property="al:ios:url" content="linkedin://login-success" />
+    <meta property="al:ios:url" content="linkedin://authorize" />
     <meta property="al:ios:app_store_id" content="288429040" />
     <meta property="al:ios:app_name" content="LinkedIn" />
+    
+    <!-- Additional app linking metadata -->
+    <meta property="al:web:url" content="https://www.linkedin.com/oauth/v2/authorization" />
+    <meta property="og:title" content="Sign in with LinkedIn" />
+    <meta property="og:description" content="Authenticate using your LinkedIn account" />
+    <meta property="fb:app_id" content="86bd4udvjkab6n" />
+    
+    <!-- Web app capability -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <style>
         body {
             font-family: 'Montserrat', sans-serif;
@@ -364,41 +374,118 @@
                 `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
                 `scope=${encodeURIComponent(LINKEDIN_SCOPES)}&` +
                 `state=${encodeURIComponent(JSON.stringify(stateData))}`;
+
+            // Track if we've tried opening the app
+            let triedOpeningApp = false;
             
-            // Update LinkedIn app deep linking logic
+            // Different approach based on device platform
             if (isAndroid) {
-                // Direct LinkedIn app URL - this works better than intent:// on many Android devices
-                const linkedInAppUrl = `linkedin://oauth?client_id=${LINKEDIN_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${encodeURIComponent(JSON.stringify(stateData))}&scope=${encodeURIComponent(LINKEDIN_SCOPES)}`;
+                try {
+                    // Try multiple LinkedIn app URL formats for maximum compatibility
+                    const linkedInAppUrl = `linkedin://oauth?client_id=${LINKEDIN_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${encodeURIComponent(JSON.stringify(stateData))}&scope=${encodeURIComponent(LINKEDIN_SCOPES)}`;
+                    
+                    // Create a hidden anchor and trigger a click programmatically
+                    const appLink = document.createElement('a');
+                    appLink.setAttribute('href', linkedInAppUrl);
+                    appLink.style.display = 'none';
+                    document.body.appendChild(appLink);
+                    appLink.click();
+                    
+                    // Also try the direct location approach
+                    window.location.href = linkedInAppUrl;
+                    
+                    triedOpeningApp = true;
+                } catch (e) {
+                    console.error('Error trying to open LinkedIn app:', e);
+                }
                 
-                // Try opening the LinkedIn app directly
-                window.location.href = linkedInAppUrl;
-                
-                // Fallback to web auth after a short delay
+                // Also try the intent URL approach as a backup
                 setTimeout(() => {
-                    // Check if we're still on the same page (app didn't open)
+                    if (document.getElementById('linkedinAppAuth')) {
+                        try {
+                            // Intent URL approach for Android
+                            const intentUrl = `intent://www.linkedin.com/oauth/v2/authorization?` +
+                                `response_type=code&` +
+                                `client_id=${LINKEDIN_CLIENT_ID}&` +
+                                `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+                                `scope=${encodeURIComponent(LINKEDIN_SCOPES)}&` +
+                                `state=${encodeURIComponent(JSON.stringify(stateData))}` +
+                                `#Intent;scheme=https;package=com.linkedin.android;end`;
+                            
+                            window.location.href = intentUrl;
+                        } catch (e) {
+                            console.error('Error trying intent URL:', e);
+                        }
+                    }
+                }, 500);
+                
+                // Final fallback to web auth after a reasonable delay
+                setTimeout(() => {
                     if (document.getElementById('linkedinAppAuth')) {
                         window.location.href = webAuthUrl;
                     }
                 }, 1500);
             } 
             else if (isIOS) {
-                // Try the LinkedIn custom URL scheme for iOS
-                const linkedInAppUrl = `linkedin://oauth?client_id=${LINKEDIN_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${encodeURIComponent(JSON.stringify(stateData))}&scope=${encodeURIComponent(LINKEDIN_SCOPES)}`;
+                try {
+                    // Universal link approach for iOS
+                    const universalLink = `https://www.linkedin.com/oauth/v2/authorization?` +
+                        `response_type=code&` +
+                        `client_id=${LINKEDIN_CLIENT_ID}&` +
+                        `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+                        `scope=${encodeURIComponent(LINKEDIN_SCOPES)}&` +
+                        `state=${encodeURIComponent(JSON.stringify(stateData))}`;
+                    
+                    // Also try the direct custom URL scheme for LinkedIn iOS app
+                    const linkedInAppUrl = `linkedin://oauth?client_id=${LINKEDIN_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${encodeURIComponent(JSON.stringify(stateData))}&scope=${encodeURIComponent(LINKEDIN_SCOPES)}`;
+                    
+                    // Create and click a hidden link (this sometimes works better on iOS)
+                    const appLink = document.createElement('a');
+                    appLink.setAttribute('href', linkedInAppUrl);
+                    appLink.style.display = 'none';
+                    document.body.appendChild(appLink);
+                    appLink.click();
+                    
+                    // Try the iframe approach as well
+                    const iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.src = linkedInAppUrl;
+                    document.body.appendChild(iframe);
+                    
+                    // Direct location approach too (covering all bases)
+                    window.location.href = linkedInAppUrl;
+                    
+                    triedOpeningApp = true;
+                    
+                    // Remove the iframe after a short delay
+                    setTimeout(() => {
+                        if (document.body.contains(iframe)) {
+                            document.body.removeChild(iframe);
+                        }
+                        if (document.body.contains(appLink)) {
+                            document.body.removeChild(appLink);
+                        }
+                    }, 500);
+                } catch (e) {
+                    console.error('Error trying to open LinkedIn app on iOS:', e);
+                }
                 
-                // Create an invisible iframe to try opening the LinkedIn app
-                const iframe = document.createElement('iframe');
-                iframe.style.display = 'none';
-                iframe.src = linkedInAppUrl;
-                document.body.appendChild(iframe);
-                
-                // Fallback to web auth after a short delay
+                // Fallback to universal link approach
                 setTimeout(() => {
-                    // Remove the iframe
-                    if (document.body.contains(iframe)) {
-                        document.body.removeChild(iframe);
+                    if (document.getElementById('linkedinAppAuth')) {
+                        try {
+                            window.location.href = universalLink;
+                        } catch (e) {
+                            console.error('Error trying universal link:', e);
+                        }
                     }
-                    // Redirect to web auth
-                    window.location.href = webAuthUrl;
+                }, 800);
+                
+                // Final fallback to web auth after a reasonable delay
+                setTimeout(() => {
+                    if (document.getElementById('linkedinAppAuth')) {
+                        window.location.href = webAuthUrl;
+                    }
                 }, 1500);
             }
             else {
@@ -410,11 +497,16 @@
             const statusMessage = document.getElementById('statusMessage');
             statusMessage.innerHTML = `
                 <div class="info" style="background-color: #e3f2fd; color: #0277bd; padding: 10px; border-radius: 4px;">
-                    Opening LinkedIn for authentication. If nothing happens in a few seconds, 
-                    <a href="${webAuthUrl}" style="color: #0277bd; font-weight: bold;">click here</a>.
+                    Trying to open LinkedIn app for authentication. If nothing happens in a few seconds, 
+                    <a href="${webAuthUrl}" style="color: #0277bd; font-weight: bold;">click here</a> to continue in browser.
                 </div>
             `;
             statusMessage.style.display = 'block';
+            
+            // Add event listener to the manual link for analytics tracking
+            statusMessage.querySelector('a').addEventListener('click', function(e) {
+                console.log('User manually clicked web auth fallback link');
+            });
         }
         
         // Helper function to get previous email for login hint
