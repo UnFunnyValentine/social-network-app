@@ -19,18 +19,73 @@ exports.handler = async function(event, context) {
     const clientSecret = process.env.LINKEDIN_CLIENT_SECRET || 'WPL_AP1.OgDnI5N7j6k3LOI2.3u7pLw==';
     const redirectUri = process.env.REDIRECT_URI || 'https://cholebhature.netlify.app/docs/user/callback.html';
     
-    // Exchange the code for a token using standard OAuth flow
-    const tokenResponse = await axios.post('https://www.linkedin.com/oauth/v2/accessToken', 
-      `grant_type=authorization_code&code=${code}&client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}`, 
-      {
+    console.log('Using client ID:', clientId);
+    console.log('Using redirect URI:', redirectUri);
+    
+    let accessToken;
+    let tokenData;
+    
+    try {
+      // Create the authorization header using HTTP Basic Authentication
+      // Format: Base64(client_id:client_secret)
+      const authBuffer = Buffer.from(`${clientId}:${clientSecret}`);
+      const authBase64 = authBuffer.toString('base64');
+      
+      // APPROACH 1: Exchange the code for a token using Basic Authentication in the header
+      console.log('Trying OAuth approach 1: Basic Auth in header');
+      const tokenResponse = await axios({
+        method: 'post',
+        url: 'https://www.linkedin.com/oauth/v2/accessToken',
+        data: `grant_type=authorization_code&code=${encodeURIComponent(code)}&redirect_uri=${encodeURIComponent(redirectUri)}`,
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Basic ${authBase64}`
         }
+      });
+      
+      console.log('Token response received with approach 1');
+      tokenData = tokenResponse.data;
+      accessToken = tokenData.access_token;
+    } catch (authError) {
+      console.log('Approach 1 failed:', authError.message);
+      console.log('Error response:', authError.response?.data);
+      
+      // APPROACH 2: Try with client credentials in the body
+      console.log('Trying OAuth approach 2: Credentials in request body');
+      try {
+        const tokenResponse = await axios.post('https://www.linkedin.com/oauth/v2/accessToken', 
+          `grant_type=authorization_code&code=${encodeURIComponent(code)}&client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}`, 
+          {
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded'
+            }
+          }
+        );
+        
+        console.log('Token response received with approach 2');
+        tokenData = tokenResponse.data;
+        accessToken = tokenData.access_token;
+      } catch (secondError) {
+        console.log('Approach 2 failed:', secondError.message);
+        console.log('Error response:', secondError.response?.data);
+        
+        // APPROACH 3: Try with URL parameters
+        console.log('Trying OAuth approach 3: Credentials in URL parameters');
+        const tokenResponse = await axios.post(
+          `https://www.linkedin.com/oauth/v2/accessToken?grant_type=authorization_code&code=${encodeURIComponent(code)}&client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}`,
+          null,
+          {
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded'
+            }
+          }
+        );
+        
+        console.log('Token response received with approach 3');
+        tokenData = tokenResponse.data;
+        accessToken = tokenData.access_token;
       }
-    );
-
-    console.log('Token response received');
-    const accessToken = tokenResponse.data.access_token;
+    }
     
     // IMPORTANT: We need to use the endpoints that match the scopes we have
     // With openid and profile scopes, we should use the userinfo endpoint
