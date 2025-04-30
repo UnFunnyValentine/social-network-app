@@ -12,7 +12,31 @@ async function loadConferenceLogs() {
         const data = await response.json();
         
         if (data.success && data.data.length > 0) {
-            displayConferenceLogs(data.data);
+            // Split conferences into live (less than 18 hours old) and history
+            const currentTime = new Date();
+            const eighteenHoursInMs = 18 * 60 * 60 * 1000; // 18 hours in milliseconds
+            
+            const liveConferences = [];
+            const historyConferences = [];
+            
+            data.data.forEach(conf => {
+                const confCreatedTime = new Date(conf.created_at);
+                const ageInMs = currentTime - confCreatedTime;
+                
+                if (ageInMs < eighteenHoursInMs) {
+                    liveConferences.push(conf);
+                } else {
+                    historyConferences.push(conf);
+                }
+            });
+            
+            // Display live conferences (if any)
+            if (liveConferences.length > 0) {
+                displayLiveConferences(liveConferences);
+            }
+            
+            // Display history conferences
+            displayConferenceLogs(historyConferences);
         } else {
             console.log('No conference history found');
         }
@@ -33,7 +57,7 @@ function displayConferenceLogs(conferences) {
         
         const logsHeader = document.createElement('div');
         logsHeader.className = 'logs-header';
-        logsHeader.textContent = 'Conference History';
+        logsHeader.textContent = 'Conference History (Past Conferences)';
         logsContainer.appendChild(logsHeader);
     }
     
@@ -352,4 +376,117 @@ function copyConferenceLink(url, button) {
         button.innerHTML = originalText;
         button.style.backgroundColor = '';
     }, 2000);
+}
+
+// Function to display live conferences
+function displayLiveConferences(conferences) {
+    // Check if live container exists, if not create it
+    let liveContainer = document.getElementById('liveContainer');
+    if (!liveContainer) {
+        liveContainer = document.createElement('div');
+        liveContainer.id = 'liveContainer';
+        liveContainer.className = 'live-container';
+        
+        // Insert before logs container if it exists
+        const logsContainer = document.getElementById('logsContainer');
+        if (logsContainer) {
+            logsContainer.parentNode.insertBefore(liveContainer, logsContainer);
+        } else {
+            document.querySelector('.container').appendChild(liveContainer);
+        }
+        
+        const liveHeader = document.createElement('div');
+        liveHeader.className = 'live-header';
+        liveHeader.innerHTML = 'Live Conferences <span class="live-badge">Active</span>';
+        liveContainer.appendChild(liveHeader);
+    }
+    
+    // Create or get live list
+    let liveList = document.getElementById('liveList');
+    if (!liveList) {
+        liveList = document.createElement('div');
+        liveList.id = 'liveList';
+        liveList.className = 'live-list';
+        liveContainer.appendChild(liveList);
+    } else {
+        liveList.innerHTML = ''; // Clear existing list
+    }
+    
+    // Add each conference to the live list
+    conferences.forEach(conf => {
+        const logItem = document.createElement('div');
+        logItem.className = 'log-item live-item';
+        
+        // Format date
+        const date = new Date(conf.created_at);
+        const formattedDate = date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        // Calculate hours elapsed
+        const currentTime = new Date();
+        const hoursElapsed = Math.floor((currentTime - date) / (60 * 60 * 1000));
+        const remainingHours = 18 - hoursElapsed;
+        
+        // Create the URL
+        const conferenceURL = `${window.location.origin}/docs/user/auth.html?id=${conf.id}&name=${encodeURIComponent(conf.name)}&location=${encodeURIComponent(conf.location || '')}`;
+        
+        logItem.innerHTML = `
+            <div class="log-item-header">
+                <div class="log-name">${conf.name}</div>
+                <div class="log-date">${formattedDate} <span class="live-time-remaining">(${remainingHours}h remaining)</span></div>
+            </div>
+            <div class="log-details">
+                <div class="log-detail">
+                    <span class="log-label">Location:</span>
+                    <span>${conf.location || 'N/A'}</span>
+                </div>
+                <div class="log-url">
+                    <span>${conferenceURL}</span>
+                </div>
+            </div>
+            <div class="log-actions">
+                <button class="btn-download-qr" data-id="${conf.id}" 
+                        data-name="${conf.name}" data-qrdata="${conf.qr_data || ''}"
+                        data-url="${conferenceURL}">
+                    <i class="fas fa-download"></i> Download QR
+                </button>
+                <button class="btn-copy-link" data-url="${conferenceURL}">
+                    <i class="fas fa-copy"></i> Copy Link
+                </button>
+            </div>
+        `;
+        
+        liveList.appendChild(logItem);
+    });
+    
+    // Add event listeners to download buttons
+    document.querySelectorAll('.btn-download-qr').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const conferenceId = this.getAttribute('data-id');
+            const conferenceName = this.getAttribute('data-name');
+            const qrData = this.getAttribute('data-qrdata');
+            const conferenceURL = this.getAttribute('data-url');
+            
+            if (qrData) {
+                // If QR data exists, use it to download
+                downloadQRFromData(qrData, conferenceName);
+            } else {
+                // Otherwise generate a new QR code
+                generateAndDownloadQR(conferenceId, conferenceName, conferenceURL);
+            }
+        });
+    });
+    
+    // Add event listeners to copy link buttons
+    document.querySelectorAll('.btn-copy-link').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const conferenceURL = this.getAttribute('data-url');
+            copyConferenceLink(conferenceURL, this);
+        });
+    });
 }
