@@ -8,42 +8,26 @@ exports.handler = async function(event, context) {
 
   try {
     const data = JSON.parse(event.body);
-    const { code, fromApp, conferenceId, conferenceName, conferenceLocation, code_verifier } = data;
+    const { code, fromApp, conferenceId, conferenceName, conferenceLocation } = data;
     
     console.log('Received code:', code);
     console.log('fromApp:', fromApp);
     console.log('Conference details:', { conferenceId, conferenceName, conferenceLocation });
-    console.log('PKCE flow:', code_verifier ? 'Yes' : 'No');
     
-    // Create params object for token request
-    const tokenParams = {
-      grant_type: 'authorization_code',
-      code: code,
-      client_id: process.env.LINKEDIN_CLIENT_ID || '86bd4udvjkab6n', // Fallback to hard-coded values if env vars not set
-      redirect_uri: process.env.REDIRECT_URI || 'https://cholebhature.netlify.app/docs/user/callback.html'
-    };
-    
-    // Add code_verifier for PKCE flow if provided
-    if (code_verifier) {
-      tokenParams.code_verifier = code_verifier;
-      console.log('Using PKCE flow with code_verifier');
-    }
-    
-    // LinkedIn requires client_secret even when using PKCE
-    // Using client credentials in the Authorization header as recommended by OAuth 2.0
+    // LinkedIn OAuth Configuration
+    const clientId = process.env.LINKEDIN_CLIENT_ID || '86bd4udvjkab6n';
     const clientSecret = process.env.LINKEDIN_CLIENT_SECRET || 'WPL_AP1.OgDnI5N7j6k3LOI2.3u7pLw==';
+    const redirectUri = process.env.REDIRECT_URI || 'https://cholebhature.netlify.app/docs/user/callback.html';
     
-    // Create authorization string: "Basic " + base64(client_id:client_secret)
-    const authString = Buffer.from(`${tokenParams.client_id}:${clientSecret}`).toString('base64');
-    
-    // Exchange the code for a token
-    const tokenResponse = await axios.post('https://www.linkedin.com/oauth/v2/accessToken', null, {
-      params: tokenParams,
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${authString}`
+    // Exchange the code for a token using standard OAuth flow
+    const tokenResponse = await axios.post('https://www.linkedin.com/oauth/v2/accessToken', 
+      `grant_type=authorization_code&code=${code}&client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}`, 
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
       }
-    });
+    );
 
     console.log('Token response received');
     const accessToken = tokenResponse.data.access_token;
