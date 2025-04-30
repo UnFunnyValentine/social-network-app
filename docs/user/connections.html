@@ -316,6 +316,57 @@
             70% { opacity: 1; }
             100% { opacity: 0; }
         }
+        .btn-share {
+            background-color: #0077b5;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+            margin-right: 10px;
+            display: inline-flex;
+            align-items: center;
+        }
+        .btn-share i {
+            margin-right: 5px;
+        }
+        .btn-share:hover {
+            background-color: #006097;
+        }
+        .share-buttons {
+            margin-top: 15px;
+        }
+        .qr-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            z-index: 1000;
+            width: 90%;
+            max-width: 350px;
+            text-align: center;
+        }
+        .qr-dialog h3 {
+            margin-top: 0;
+        }
+        .qr-dialog #qrcode {
+            padding: 20px;
+            background: white;
+            display: inline-block;
+            margin: 20px auto;
+        }
+        .dialog-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
     </style>
 </head>
 <body>
@@ -333,6 +384,14 @@
             <h2 id="conference-name">Loading conference info...</h2>
             <p id="conference-location"></p>
             <p><small>Showing LinkedIn connections attending this conference</small></p>
+            <div class="share-buttons">
+                <button class="btn btn-share" onclick="showQRCode()">
+                    <i class="fas fa-qrcode"></i> Share QR Code
+                </button>
+                <button class="btn btn-share" onclick="showShareOptions()">
+                    <i class="fas fa-link"></i> Share Link
+                </button>
+            </div>
         </div>
         
         <div class="user-profile">
@@ -1248,13 +1307,13 @@
             
             try {
                 // Get connection details for better search
-                const connection = allConnections.find(c => c.id === attendeeId);
+            const connection = allConnections.find(c => c.id === attendeeId);
                 const userName = connection ? connection.name : '';
                 const userCompany = connection ? connection.company : '';
                 const userTitle = connection ? connection.title : '';
-                
+            
                 // Handle the URL based on its format
-                if (profileUrl.startsWith('search:')) {
+            if (profileUrl.startsWith('search:')) {
                     // Extract the ID for search
                     const searchId = profileUrl.replace('search:', '');
                     console.log(`Using search fallback with ID: ${searchId}`);
@@ -1798,29 +1857,18 @@ Last Updated: ${new Date().toLocaleTimeString()}
         function showShareOptions() {
             const conferenceId = localStorage.getItem('conferenceId');
             const conferenceName = localStorage.getItem('conferenceName');
+            const conferenceLocation = localStorage.getItem('conferenceLocation');
             
             // Create URL for sharing
-            const shareUrl = `${window.location.origin}${window.location.pathname}?id=${conferenceId}&name=${encodeURIComponent(conferenceName)}`;
+            const shareUrl = `${window.location.origin}/docs/user/auth.html?id=${conferenceId}&name=${encodeURIComponent(conferenceName)}&location=${encodeURIComponent(conferenceLocation || '')}`;
             
             // Create and show sharing dialog
             const dialog = document.createElement('div');
-            dialog.style.cssText = `
-                position: fixed;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                background: white;
-                padding: 20px;
-                border-radius: 8px;
-                box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-                z-index: 1000;
-                width: 90%;
-                max-width: 400px;
-            `;
+            dialog.className = 'qr-dialog';
             
             dialog.innerHTML = `
-                <h3 style="margin-top: 0;">Share Conference Link</h3>
-                <p>Share this link to invite others to join this conference:</p>
+                <h3>Share Conference Link</h3>
+                <p>Share this link to invite others to join "${conferenceName}":</p>
                 <div style="display: flex; margin-bottom: 15px;">
                     <input type="text" value="${shareUrl}" 
                         style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" readonly id="shareUrlInput">
@@ -1828,9 +1876,8 @@ Last Updated: ${new Date().toLocaleTimeString()}
                         Copy
                     </button>
                 </div>
-                <div style="display: flex; justify-content: flex-end; gap: 10px;">
-                    <button onclick="closeShareDialog()"
-                        style="padding: 8px 15px; background: #f5f5f5; border: none; border-radius: 4px; cursor: pointer;">
+                <div class="dialog-buttons">
+                    <button onclick="closeDialog()" class="btn btn-outline">
                         Close
                     </button>
                 </div>
@@ -1840,7 +1887,7 @@ Last Updated: ${new Date().toLocaleTimeString()}
             document.body.appendChild(dialog);
             
             // Store the dialog element for later reference
-            window.currentShareDialog = dialog;
+            window.currentDialog = dialog;
             
             // Select the URL for easier copying
             setTimeout(() => {
@@ -1865,10 +1912,10 @@ Last Updated: ${new Date().toLocaleTimeString()}
         }
 
         // Function to close the share dialog
-        function closeShareDialog() {
-            if (window.currentShareDialog) {
-                document.body.removeChild(window.currentShareDialog);
-                window.currentShareDialog = null;
+        function closeDialog() {
+            if (window.currentDialog) {
+                document.body.removeChild(window.currentDialog);
+                window.currentDialog = null;
             }
         }
 
@@ -2217,6 +2264,103 @@ Last Updated: ${new Date().toLocaleTimeString()}
 
         // Start initialization when the page loads
         document.addEventListener('DOMContentLoaded', initializePage);
+
+        // Function to show QR code for sharing
+        function showQRCode() {
+            const conferenceId = localStorage.getItem('conferenceId');
+            const conferenceName = localStorage.getItem('conferenceName');
+            const conferenceLocation = localStorage.getItem('conferenceLocation');
+            
+            // Create URL for sharing
+            const shareUrl = `${window.location.origin}/docs/user/auth.html?id=${conferenceId}&name=${encodeURIComponent(conferenceName)}&location=${encodeURIComponent(conferenceLocation || '')}`;
+            
+            // Create dialog for QR code
+            const dialog = document.createElement('div');
+            dialog.className = 'qr-dialog';
+            dialog.innerHTML = `
+                <h3>Share Conference QR Code</h3>
+                <p>Scan this QR code to join "${conferenceName}"</p>
+                <div id="qrcode"></div>
+                <div class="dialog-buttons">
+                    <button onclick="downloadQRImage()" class="btn">
+                        <i class="fas fa-download"></i> Save QR
+                    </button>
+                    <button onclick="closeDialog()" class="btn btn-outline">
+                        Close
+                    </button>
+                </div>
+            `;
+            
+            // Add the dialog to the body
+            document.body.appendChild(dialog);
+            
+            // Store the dialog element for later reference
+            window.currentDialog = dialog;
+            
+            // Generate QR code
+            // First check if QRCode library is loaded
+            if (typeof QRCode === 'undefined') {
+                // Load QRCode.js if not already loaded
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+                script.onload = function() {
+                    generateQR(shareUrl);
+                };
+                document.head.appendChild(script);
+            } else {
+                generateQR(shareUrl);
+            }
+        }
+        
+        // Generate QR code for the dialog
+        function generateQR(url) {
+            const qrcodeElement = document.getElementById('qrcode');
+            if (!qrcodeElement) return;
+            
+            qrcodeElement.innerHTML = '';
+            
+            // Generate QR code
+            new QRCode(qrcodeElement, {
+                text: url,
+                width: 256,
+                height: 256,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+            
+            // Store QR data URL for download
+            setTimeout(() => {
+                const qrImage = qrcodeElement.querySelector('img');
+                if (qrImage) {
+                    qrImage.setAttribute('alt', 'Conference QR Code');
+                    window.qrDataUrl = qrImage.src;
+                }
+            }, 100);
+        }
+        
+        // Download QR code image
+        function downloadQRImage() {
+            if (window.qrDataUrl) {
+                const conferenceName = localStorage.getItem('conferenceName') || 'conference';
+                const a = document.createElement('a');
+                a.download = `qr-code-${conferenceName.toLowerCase().replace(/\s+/g, '-')}.png`;
+                a.href = window.qrDataUrl;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            } else {
+                alert('QR code is not ready yet. Please try again in a moment.');
+            }
+        }
+        
+        // Close any dialog
+        function closeDialog() {
+            if (window.currentDialog) {
+                document.body.removeChild(window.currentDialog);
+                window.currentDialog = null;
+            }
+        }
     </script>
 </body>
 </html>
