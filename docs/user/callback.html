@@ -256,7 +256,9 @@
                     // Pass conference info to ensure it's preserved
                     conferenceId,
                     conferenceName,
-                    conferenceLocation
+                    conferenceLocation,
+                    // Add code_verifier for PKCE flow if available
+                    code_verifier: localStorage.getItem('linkedin_code_verifier') || undefined
                 })
             })
             .then(async response => {
