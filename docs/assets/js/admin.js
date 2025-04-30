@@ -86,6 +86,9 @@ function displayConferenceLogs(conferences) {
                         data-url="${conferenceURL}">
                     <i class="fas fa-download"></i> Download QR
                 </button>
+                <button class="btn-copy-link" data-url="${conferenceURL}">
+                    <i class="fas fa-copy"></i> Copy Link
+                </button>
             </div>
         `;
         
@@ -107,6 +110,14 @@ function displayConferenceLogs(conferences) {
                 // Otherwise generate a new QR code
                 generateAndDownloadQR(conferenceId, conferenceName, conferenceURL);
             }
+        });
+    });
+    
+    // Add event listeners to copy link buttons
+    document.querySelectorAll('.btn-copy-link').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const conferenceURL = this.getAttribute('data-url');
+            copyConferenceLink(conferenceURL, this);
         });
     });
 }
@@ -315,4 +326,30 @@ function generateUniqueId() {
 function logout() {
     localStorage.removeItem('adminLoggedIn');
     window.location.href = 'index.html';
+}
+
+// Function to copy conference link to clipboard
+function copyConferenceLink(url, button) {
+    // Create a temporary input element
+    const tempInput = document.createElement('input');
+    tempInput.value = url;
+    document.body.appendChild(tempInput);
+    
+    // Select and copy the URL
+    tempInput.select();
+    document.execCommand('copy');
+    
+    // Remove the temporary input
+    document.body.removeChild(tempInput);
+    
+    // Show copied feedback
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+    button.style.backgroundColor = '#28a745';
+    
+    // Restore original text after 2 seconds
+    setTimeout(() => {
+        button.innerHTML = originalText;
+        button.style.backgroundColor = '';
+    }, 2000);
 }
