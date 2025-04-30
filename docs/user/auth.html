@@ -195,12 +195,21 @@
                 Connecting to LinkedIn...
             `;
             
+            // Check if user was previously authenticated with LinkedIn
+            const previouslyAuthenticated = localStorage.getItem('isAuthenticated') === 'true' && 
+                                           localStorage.getItem('linkedInUser');
+            
             // Construct LinkedIn OAuth URL
             const linkedInAuthUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
                 `response_type=code&` +
                 `client_id=${LINKEDIN_CLIENT_ID}&` +
                 `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
                 `scope=${encodeURIComponent(LINKEDIN_SCOPES)}&` +
+                // Add prompt parameter - "none" tries to use existing session without prompting
+                // If user wasn't previously authenticated, use "select_account" to ensure they can choose account
+                `prompt=${previouslyAuthenticated ? 'none' : 'select_account'}&` +
+                // Add login_hint if we have a previous email address
+                `${getPreviousEmail()}&` +
                 `state=${encodeURIComponent(JSON.stringify(stateData))}`;
             
             // Redirect to LinkedIn login
@@ -208,6 +217,50 @@
                 window.location.href = linkedInAuthUrl;
             }, 500);
         }
+        
+        // Helper function to get previous email for login hint
+        function getPreviousEmail() {
+            try {
+                const userData = JSON.parse(localStorage.getItem('linkedInUser') || '{}');
+                const email = userData.email || userData.emailAddress;
+                return email ? `login_hint=${encodeURIComponent(email)}` : '';
+            } catch (e) {
+                return '';
+            }
+        }
+        
+        // Before LinkedIn Auth, check if we have a recent valid session
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                // Check for existing valid authentication (less than 7 days old)
+                const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+                const authTime = localStorage.getItem('authTime');
+                const userData = localStorage.getItem('linkedInUser');
+                
+                if (isAuthenticated && authTime && userData) {
+                    const lastAuthTime = new Date(authTime);
+                    const currentTime = new Date();
+                    const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+                    
+                    // If auth is less than 7 days old, use existing data
+                    if ((currentTime - lastAuthTime) < sevenDaysInMs) {
+                        console.log('Using existing LinkedIn authentication');
+                        
+                        // Store conference data
+                        const storedUser = JSON.parse(userData);
+                        localStorage.setItem('conferenceId', conferenceId);
+                        localStorage.setItem('conferenceName', conferenceName);
+                        localStorage.setItem('conferenceLocation', conferenceLocation);
+                        
+                        // Skip login and go directly to connections page
+                        window.location.href = 'connections.html';
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.error('Error checking for existing auth:', e);
+            }
+        });
         
         // LinkedIn Auth Button Event Listener
         document.getElementById('linkedinAuth').addEventListener('click', loginWithLinkedIn);
