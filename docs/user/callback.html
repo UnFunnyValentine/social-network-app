@@ -71,6 +71,10 @@
             color: #0277bd;
         }
     </style>
+    <!-- Load Capacitor if available -->
+    <script src="capacitor.js"></script>
+    <!-- Load configuration -->
+    <script src="config.js"></script>
 </head>
 <body>
     <div class="container">
@@ -95,12 +99,11 @@
     </div>
 
     <script>
-        // LinkedIn OAuth Configuration
-        const LINKEDIN_CLIENT_ID = '86bd4udvjkab6n';
-        const LINKEDIN_CLIENT_SECRET = 'WPL_AP1.OgDnI5N7j6k3LOI2.3u7pLw==';
-
+        // LinkedIn OAuth Configuration from config.js
+        const LINKEDIN_CLIENT_ID = CONFIG.LINKEDIN_CLIENT_ID;
+        
         // IMPORTANT: This must EXACTLY match what's in auth.html and what's registered in LinkedIn Developer Console
-        const REDIRECT_URI = 'https://cholebhature.netlify.app/docs/user/callback.html';
+        const REDIRECT_URI = CONFIG.REDIRECT_URI;
 
         // Debug mode
         const isDebugMode = true;
@@ -125,6 +128,11 @@
             return /LinkedIn/i.test(userAgent);
         }
 
+        // Check if running in Capacitor
+        function isRunningInCapacitor() {
+            return CONFIG.isRunningInCapacitor();
+        }
+
         // Check for LinkedIn app deep link callback parameters
         function checkForLinkedInAppCallback() {
             // LinkedIn might append parameters like "oauth_token" or specific markers
@@ -147,11 +155,13 @@
         
         // Check if this is a LinkedIn app callback
         const isAppCallback = checkForLinkedInAppCallback();
+        const isCapacitorCallback = isRunningInCapacitor();
         
         // Log current URL for debugging
         console.log('Current URL:', window.location.href);
         console.log('Is LinkedIn App:', isLinkedInApp());
         console.log('Is App Callback:', isAppCallback);
+        console.log('Is Capacitor:', isCapacitorCallback);
         
         // For debugging Netlify environment
         console.log('Using Netlify environment:');
@@ -201,6 +211,15 @@
                 window.location.href = `auth.html?error=${error}&error_description=${encodeURIComponent(errorDescription || '')}`;
             }, 3000);
         } else if (code) {
+            // If running in Capacitor, redirect to app with auth code
+            if (isCapacitorCallback) {
+                console.log('Running in Capacitor - redirecting to app scheme with auth code');
+                // Redirect to the app with the auth code using custom scheme
+                window.location.href = `${CONFIG.APP_SCHEME}://callback?code=${code}&state=${state}`;
+                // Stop further processing
+                return;
+            }
+            
             // We have an authorization code, this is a successful authentication
             // Check if this came from app authentication (mobile)
             const isFromApp = conferenceDetails.fromApp === true;
@@ -244,6 +263,14 @@
 
             logDebug('Conference data in callback:', { conferenceId, conferenceName, conferenceLocation });
             
+            // Get code verifier from session storage for PKCE
+            const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
+            if (codeVerifier) {
+                console.log('Retrieved PKCE code verifier from session storage');
+            } else {
+                console.log('No PKCE code verifier found in session storage, continuing without PKCE');
+            }
+            
             // Exchange code for token using our Netlify function
             fetch('/.netlify/functions/linkedin-token', {
                 method: 'POST',
@@ -252,6 +279,7 @@
                 },
                 body: JSON.stringify({ 
                     code,
+                    code_verifier: codeVerifier,
                     fromApp: isFromApp || isAppCallback,
                     // Pass conference info to ensure it's preserved
                     conferenceId,
