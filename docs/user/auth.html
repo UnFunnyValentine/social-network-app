@@ -181,7 +181,7 @@
                 APP_SCHEME: 'com.znetlive.promeet',
                 
                 // API endpoints
-                API_BASE_URL: window.location.origin.includes('localhost') ? 
+                API_BASE_URL: typeof window !== 'undefined' && window.location.origin.includes('localhost') ? 
                     '/api' : 'https://cholebhature.netlify.app/api',
                     
                 // Required LinkedIn API scopes
@@ -189,13 +189,13 @@
                 
                 // Check if running in Capacitor
                 isRunningInCapacitor: function() {
-                    return (window.Capacitor !== undefined && window.Capacitor.isNative === true);
+                    return (typeof window !== 'undefined' && window.Capacitor !== undefined && window.Capacitor.isNative === true);
                 },
                 
                 // Gets the appropriate redirect URI based on environment
                 getRedirectUri: function() {
                     // For local development
-                    if (window.location.hostname === 'localhost') {
+                    if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
                         return `${window.location.origin}/docs/user/callback.html`;
                     }
                     
@@ -349,15 +349,15 @@
                 try {
                     CODE_CHALLENGE = await generateCodeChallenge(CODE_VERIFIER);
                     console.log('Generated PKCE code challenge');
+                    
+                    // Store code verifier for later use
+                    sessionStorage.setItem('pkce_code_verifier', CODE_VERIFIER);
+                    console.log('Stored PKCE code verifier in session storage');
                 } catch (cryptoError) {
                     console.error('Error generating code challenge:', cryptoError);
                     // Fallback to simpler authentication without PKCE if crypto fails
                     throw new Error('Failed to generate secure authentication request. Your browser might not support required security features.');
                 }
-                
-                // Store code verifier for later use
-                sessionStorage.setItem('pkce_code_verifier', CODE_VERIFIER);
-                console.log('Generated PKCE code verifier and challenge');
                 
                 // Create state parameter with conference details
                 const stateData = {
