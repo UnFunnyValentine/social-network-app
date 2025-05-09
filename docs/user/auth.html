@@ -185,7 +185,7 @@
                     '/api' : 'https://cholebhature.netlify.app/api',
                     
                 // Required LinkedIn API scopes
-                LINKEDIN_SCOPES: ['openid', 'profile', 'r_basicprofile', 'email'],
+                LINKEDIN_SCOPES: ['r_liteprofile', 'openid', 'profile', 'email'],
                 
                 // Check if running in Capacitor
                 isRunningInCapacitor: function() {
@@ -336,14 +336,12 @@
                 let REDIRECT_URI = CONFIG.getRedirectUri();
                 
                 // Required LinkedIn API scopes from config
-                // Make sure all these scopes are enabled in your LinkedIn app
+                // Using minimal scopes that should be authorized
                 const LINKEDIN_SCOPES = [
-                    'r_emailaddress',
-                    'r_liteprofile',
-                    'r_basicprofile',
-                    'openid',
-                    'profile',
-                    'email'
+                    'r_liteprofile', // Basic profile info (name, photo, headline)
+                    'openid',        // OpenID Connect basic identity
+                    'profile',       // Standard profile info
+                    'email'          // Email address
                 ].join(' ');
                 
                 // Show debug info in the console
