@@ -72,9 +72,58 @@
         }
     </style>
     <!-- Load Capacitor if available -->
-    <script src="capacitor.js"></script>
-    <!-- Load configuration -->
-    <script src="config.js"></script>
+    <script>
+        // Only try to load capacitor.js if in an app context
+        if (window.location.protocol === 'capacitor:' || 
+            window.location.protocol === 'file:' || 
+            /android/i.test(navigator.userAgent)) {
+            document.write('<script src="capacitor.js"><\/script>');
+        }
+    </script>
+    <!-- Load configuration with fallback -->
+    <script src="config.js" onerror="console.error('Failed to load config.js, using fallback')"></script>
+    <script>
+        // Fallback CONFIG if config.js fails to load
+        if (typeof CONFIG === 'undefined') {
+            console.warn('CONFIG not found, using fallback config');
+            window.CONFIG = {
+                // LinkedIn OAuth
+                LINKEDIN_CLIENT_ID: '86bd4udvjkab6n',
+                
+                // Default redirect URI
+                REDIRECT_URI: 'https://cholebhature.netlify.app/docs/user/callback.html',
+                
+                // App scheme
+                APP_SCHEME: 'com.znetlive.promeet',
+                
+                // API endpoints
+                API_BASE_URL: window.location.origin.includes('localhost') ? 
+                    '/api' : 'https://cholebhature.netlify.app/api',
+                    
+                // Required LinkedIn API scopes
+                LINKEDIN_SCOPES: ['openid', 'profile', 'r_basicprofile', 'email'],
+                
+                // Check if running in Capacitor
+                isRunningInCapacitor: function() {
+                    return (window.Capacitor !== undefined && window.Capacitor.isNative === true);
+                },
+                
+                // Gets the appropriate redirect URI based on environment
+                getRedirectUri: function() {
+                    // For local development
+                    if (window.location.hostname === 'localhost') {
+                        return `${window.location.origin}/docs/user/callback.html`;
+                    }
+                    
+                    // Default production URL
+                    return this.REDIRECT_URI;
+                }
+            };
+            
+            // Prevent modification of the config
+            Object.freeze(CONFIG);
+        }
+    </script>
 </head>
 <body>
     <div class="container">
