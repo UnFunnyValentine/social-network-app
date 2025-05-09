@@ -31,16 +31,17 @@ exports.handler = async function(event, context) {
     }
     
     // LinkedIn OAuth Configuration
-    const clientId = process.env.LINKEDIN_CLIENT_ID;
+    const clientId = process.env.LINKEDIN_CLIENT_ID || '86bd4udvjkab6n';
     const clientSecret = process.env.LINKEDIN_CLIENT_SECRET;
     const redirectUri = process.env.REDIRECT_URI || 'https://cholebhature.netlify.app/docs/user/callback.html';
     
-    console.log('Using client ID:', clientId ? 'Valid (hidden)' : 'Missing');
+    console.log('Using client ID:', clientId ? `${clientId.substring(0, 4)}...${clientId.substring(clientId.length - 4)}` : 'Missing');
+    console.log('Using client secret:', clientSecret ? 'Present (hidden)' : 'Missing');
     console.log('Using redirect URI:', redirectUri);
     
     // Validate LinkedIn credentials
-    if (!clientId || !clientSecret) {
-      console.error('Missing LinkedIn credentials in environment variables');
+    if (!clientId) {
+      console.error('Missing LinkedIn Client ID in environment variables');
       return {
         statusCode: 200,
         headers: {
@@ -49,7 +50,22 @@ exports.handler = async function(event, context) {
         },
         body: JSON.stringify({ 
           status: 'error',
-          message: 'Server configuration error. Please contact support.'
+          message: 'LinkedIn Client ID is missing in server configuration. Please contact the administrator.'
+        })
+      };
+    }
+    
+    if (!clientSecret) {
+      console.error('Missing LinkedIn Client Secret in environment variables');
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({ 
+          status: 'error',
+          message: 'LinkedIn Client Secret is missing in server configuration. Please contact support.'
         })
       };
     }
@@ -295,9 +311,35 @@ exports.handler = async function(event, context) {
     };
   } catch (error) {
     console.log('Error:', error.message);
+    let errorMessage = 'Authentication failed. Please try again.';
+    let errorDetails = {};
+    
     if (error.response) {
       console.log('Error response:', error.response.data);
       console.log('Error status:', error.response.status);
+      
+      // Extract meaningful information from LinkedIn error responses
+      if (error.response.data) {
+        if (error.response.data.error_description) {
+          errorMessage = error.response.data.error_description;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        }
+        
+        errorDetails = {
+          status: error.response.status,
+          data: error.response.data
+        };
+      }
+      
+      // Provide more helpful error messages based on status code
+      if (error.response.status === 401) {
+        errorMessage = 'LinkedIn authentication failed: Invalid credentials. Please check your LinkedIn app settings.';
+      } else if (error.response.status === 400) {
+        errorMessage = 'LinkedIn authentication failed: Invalid request. The authorization code may be invalid or expired.';
+      } else if (error.response.status === 403) {
+        errorMessage = 'LinkedIn authentication failed: Access denied. Your app may not have the required permissions.';
+      }
     }
     
     // Return an error response with a clear error message
@@ -309,9 +351,10 @@ exports.handler = async function(event, context) {
       },
       body: JSON.stringify({ 
         status: 'error',
-        message: 'Authentication failed. Please try again using the standard sign-in option.',
+        message: errorMessage,
         error: error.message,
-        errorCode: error.response?.status || 500
+        errorCode: error.response?.status || 500,
+        details: errorDetails
       })
     };
   }
