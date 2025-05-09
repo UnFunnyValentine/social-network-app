@@ -99,6 +99,10 @@ exports.handler = async function(event, context) {
         console.log('Added code_verifier to token request');
       }
       
+      // Debug info - mask sensitive data
+      console.log('Token request data:', tokenRequestData.replace(code, '[CODE HIDDEN]'));
+      console.log('Encoded client ID + secret:', (clientId + clientSecret).substring(0, 5) + '...' + (clientId + clientSecret).substring((clientId + clientSecret).length - 5));
+      
       const tokenResponse = await axios({
         method: 'post',
         url: 'https://www.linkedin.com/oauth/v2/accessToken',
@@ -120,13 +124,18 @@ exports.handler = async function(event, context) {
       console.log('Trying OAuth approach 2: Credentials in request body');
       try {
         // Build token request data
-        let tokenRequestData = `grant_type=authorization_code&code=${encodeURIComponent(code)}&client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+        let tokenRequestData = `grant_type=authorization_code&code=${encodeURIComponent(code)}&client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
         
         // Add code_verifier for PKCE if available
         if (codeVerifier) {
           tokenRequestData += `&code_verifier=${encodeURIComponent(codeVerifier)}`;
           console.log('Added code_verifier to token request (approach 2)');
         }
+        
+        // Debug info - mask sensitive data
+        console.log('Token request data (approach 2):', tokenRequestData
+          .replace(code, '[CODE HIDDEN]')
+          .replace(clientSecret, '[SECRET HIDDEN]'));
         
         const tokenResponse = await axios.post('https://www.linkedin.com/oauth/v2/accessToken', 
           tokenRequestData, 
@@ -148,13 +157,18 @@ exports.handler = async function(event, context) {
         console.log('Trying OAuth approach 3: Credentials in URL parameters');
         
         // Build token URL with parameters
-        let tokenUrl = `https://www.linkedin.com/oauth/v2/accessToken?grant_type=authorization_code&code=${encodeURIComponent(code)}&client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+        let tokenUrl = `https://www.linkedin.com/oauth/v2/accessToken?grant_type=authorization_code&code=${encodeURIComponent(code)}&client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
         
         // Add code_verifier for PKCE if available
         if (codeVerifier) {
           tokenUrl += `&code_verifier=${encodeURIComponent(codeVerifier)}`;
           console.log('Added code_verifier to token request (approach 3)');
         }
+        
+        // Debug info - mask sensitive data
+        console.log('Token URL (approach 3):', tokenUrl
+          .replace(code, '[CODE HIDDEN]')
+          .replace(clientSecret, '[SECRET HIDDEN]'));
         
         const tokenResponse = await axios.post(
           tokenUrl,
