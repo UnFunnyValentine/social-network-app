@@ -155,6 +155,10 @@
             margin-top: 20px;
         }
     </style>
+    <!-- Load Capacitor if available -->
+    <script src="capacitor.js"></script>
+    <!-- Load configuration -->
+    <script src="config.js"></script>
 </head>
 <body>
     <div class="container">
@@ -174,6 +178,34 @@
     </div>
 
     <script>
+        // PKCE Helper Functions
+        function generateRandomString(length) {
+            let text = '';
+            const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+            for (let i = 0; i < length; i++) {
+                text += possible.charAt(Math.floor(Math.random() * possible.length));
+            }
+            return text;
+        }
+
+        async function generateCodeChallenge(codeVerifier) {
+            // Create a SHA-256 hash of the code verifier
+            const encoder = new TextEncoder();
+            const data = encoder.encode(codeVerifier);
+            const digest = await window.crypto.subtle.digest('SHA-256', data);
+            
+            // Convert the hash to base64-url format
+            return btoa(String.fromCharCode.apply(null, new Uint8Array(digest)))
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=+$/, '');
+        }
+
+        // Check if running in Capacitor
+        function isRunningInCapacitor() {
+            return (window.Capacitor !== undefined && window.Capacitor.isNative === true);
+        }
+
         // Parse URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         
@@ -239,29 +271,27 @@
         }
         
         // LinkedIn OAuth Configuration
-        function loginWithLinkedIn() {
-            // LinkedIn OAuth Configuration
-            const LINKEDIN_CLIENT_ID = '86bd4udvjkab6n';
+        async function loginWithLinkedIn() {
+            // LinkedIn OAuth Configuration from config.js
+            const LINKEDIN_CLIENT_ID = CONFIG.LINKEDIN_CLIENT_ID;
             
-            // Set the redirect URI to an absolute URL based on current origin
-            let REDIRECT_URI = 'https://cholebhature.netlify.app/docs/user/callback.html';
+            // Set the redirect URI from config
+            let REDIRECT_URI = CONFIG.getRedirectUri();
             
-            // For local development, allow overriding with localhost
-            if (window.location.hostname === 'localhost') {
-                REDIRECT_URI = `${window.location.origin}/docs/user/callback.html`;
-            }
-            
-            // Required LinkedIn API scopes - must match what's configured in LinkedIn Developer Portal
-            const LINKEDIN_SCOPES = [
-                'openid',
-                'profile',
-                'r_basicprofile',
-                'email'
-            ].join(' ');
+            // Required LinkedIn API scopes from config
+            const LINKEDIN_SCOPES = CONFIG.LINKEDIN_SCOPES.join(' ');
             
             // Show debug info in the console
             console.log('Using LinkedIn scopes:', LINKEDIN_SCOPES);
             console.log('Redirect URI:', REDIRECT_URI);
+            
+            // Generate PKCE code verifier and challenge
+            const CODE_VERIFIER = generateRandomString(64);
+            const CODE_CHALLENGE = await generateCodeChallenge(CODE_VERIFIER);
+            
+            // Store code verifier for later use
+            sessionStorage.setItem('pkce_code_verifier', CODE_VERIFIER);
+            console.log('Generated PKCE code verifier and challenge');
             
             // Create state parameter with conference details
             const stateData = {
@@ -282,12 +312,14 @@
             const previouslyAuthenticated = localStorage.getItem('isAuthenticated') === 'true' && 
                                            localStorage.getItem('linkedInUser');
             
-            // Construct LinkedIn OAuth URL
+            // Construct LinkedIn OAuth URL with PKCE
             const linkedInAuthUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
                 `response_type=code&` +
                 `client_id=${LINKEDIN_CLIENT_ID}&` +
                 `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
                 `scope=${encodeURIComponent(LINKEDIN_SCOPES)}&` +
+                `code_challenge=${encodeURIComponent(CODE_CHALLENGE)}&` +
+                `code_challenge_method=S256&` +
                 // Add prompt parameter - "none" tries to use existing session without prompting
                 // If user wasn't previously authenticated, use "select_account" to ensure they can choose account
                 `prompt=${previouslyAuthenticated ? 'none' : 'select_account'}&` +
@@ -297,7 +329,13 @@
             
             // Redirect to LinkedIn login
             setTimeout(() => {
-                window.location.href = linkedInAuthUrl;
+                // If in Capacitor, use Browser plugin if available
+                if (CONFIG.isRunningInCapacitor() && window.Capacitor?.Plugins?.Browser) {
+                    console.log('Opening auth URL with Capacitor Browser plugin');
+                    window.Capacitor.Plugins.Browser.open({ url: linkedInAuthUrl });
+                } else {
+                    window.location.href = linkedInAuthUrl;
+                }
             }, 500);
         }
         
