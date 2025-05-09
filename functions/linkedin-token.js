@@ -10,24 +10,56 @@ exports.handler = async function(event, context) {
     const data = JSON.parse(event.body);
     const { code, fromApp, conferenceId, conferenceName, conferenceLocation } = data;
     
-    console.log('Received code:', code);
+    console.log('Received code:', code ? `${code.substring(0, 10)}...` : 'missing');
     console.log('fromApp:', fromApp);
     console.log('Conference details:', { conferenceId, conferenceName, conferenceLocation });
+    
+    // Validate required parameters
+    if (!code) {
+      console.error('Missing authorization code');
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({ 
+          status: 'error',
+          message: 'Missing authorization code. Please try again.'
+        })
+      };
+    }
     
     // LinkedIn OAuth Configuration
     const clientId = process.env.LINKEDIN_CLIENT_ID;
     const clientSecret = process.env.LINKEDIN_CLIENT_SECRET;
     const redirectUri = process.env.REDIRECT_URI || 'https://cholebhature.netlify.app/docs/user/callback.html';
     
-    console.log('Using client ID:', clientId);
+    console.log('Using client ID:', clientId ? 'Valid (hidden)' : 'Missing');
     console.log('Using redirect URI:', redirectUri);
+    
+    // Validate LinkedIn credentials
+    if (!clientId || !clientSecret) {
+      console.error('Missing LinkedIn credentials in environment variables');
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({ 
+          status: 'error',
+          message: 'Server configuration error. Please contact support.'
+        })
+      };
+    }
     
     // Add code verifier checking for PKCE flow
     const codeVerifier = data.code_verifier;
     if (!codeVerifier) {
       console.log('Warning: No code_verifier provided. Not using PKCE flow.');
     } else {
-      console.log('PKCE flow: Code verifier received');
+      console.log('PKCE flow: Code verifier received (length: ' + codeVerifier.length + ')');
     }
     
     let accessToken;
