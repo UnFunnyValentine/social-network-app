@@ -336,9 +336,18 @@
                 let REDIRECT_URI = CONFIG.getRedirectUri();
                 
                 // Required LinkedIn API scopes from config
-                const LINKEDIN_SCOPES = CONFIG.LINKEDIN_SCOPES.join(' ');
+                // Make sure all these scopes are enabled in your LinkedIn app
+                const LINKEDIN_SCOPES = [
+                    'r_emailaddress',
+                    'r_liteprofile',
+                    'r_basicprofile',
+                    'openid',
+                    'profile',
+                    'email'
+                ].join(' ');
                 
                 // Show debug info in the console
+                console.log('Using LinkedIn client ID:', LINKEDIN_CLIENT_ID.substring(0, 3) + '...' + LINKEDIN_CLIENT_ID.substring(LINKEDIN_CLIENT_ID.length - 3));
                 console.log('Using LinkedIn scopes:', LINKEDIN_SCOPES);
                 console.log('Redirect URI:', REDIRECT_URI);
                 
@@ -371,22 +380,40 @@
                 const previouslyAuthenticated = localStorage.getItem('isAuthenticated') === 'true' && 
                                                localStorage.getItem('linkedInUser');
                 
-                // Construct LinkedIn OAuth URL with PKCE
+                // Construct LinkedIn OAuth URL with PKCE and the proper scopes
                 const linkedInAuthUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
                     `response_type=code&` +
-                    `client_id=${LINKEDIN_CLIENT_ID}&` +
+                    `client_id=${encodeURIComponent(LINKEDIN_CLIENT_ID)}&` +
                     `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
                     `scope=${encodeURIComponent(LINKEDIN_SCOPES)}&` +
                     `code_challenge=${encodeURIComponent(CODE_CHALLENGE)}&` +
                     `code_challenge_method=S256&` +
                     // Add prompt parameter - "none" tries to use existing session without prompting
                     // If user wasn't previously authenticated, use "select_account" to ensure they can choose account
-                    `prompt=${previouslyAuthenticated ? 'none' : 'select_account'}&` +
+                    `prompt=${previouslyAuthenticated ? 'consent' : 'consent'}&` +
                     // Add login_hint if we have a previous email address
                     `${getPreviousEmail()}&` +
                     `state=${encodeURIComponent(JSON.stringify(stateData))}`;
                 
                 console.log('Authorization URL generated successfully');
+                
+                // If in debug mode, show the full URL for troubleshooting
+                const isDebugMode = urlParams.get('debug') === 'true';
+                if (isDebugMode) {
+                    console.log('Full authorization URL:', linkedInAuthUrl.replace(LINKEDIN_CLIENT_ID, '[CLIENT_ID]'));
+                    
+                    // Show debug info on page
+                    const statusMessage = document.getElementById('statusMessage');
+                    statusMessage.className = 'status-message info';
+                    statusMessage.innerHTML = `
+                        <strong>Debug Mode Enabled</strong>
+                        <p>Client ID: ${LINKEDIN_CLIENT_ID.substring(0, 3)}...${LINKEDIN_CLIENT_ID.substring(LINKEDIN_CLIENT_ID.length - 3)}</p>
+                        <p>Redirect URI: ${REDIRECT_URI}</p>
+                        <p>Scopes: ${LINKEDIN_SCOPES}</p>
+                        <p>PKCE Used: Yes</p>
+                    `;
+                    statusMessage.style.display = 'block';
+                }
                 
                 // Redirect to LinkedIn login - wrapped in try/catch for extra safety
                 try {
