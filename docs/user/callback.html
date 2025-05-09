@@ -410,9 +410,20 @@
                 })
                 .catch(error => {
                     console.error('Error during authentication:', error);
-                    showStatus('Authentication error: ' + error.message, 'error');
                     
-                    // Update UI to show error
+                    // Extract more details about the error if available
+                    let errorDetails = '';
+                    if (error.response) {
+                        console.error('Error response:', error.response.data);
+                        console.error('Error status:', error.response.status);
+                        errorDetails = `Status: ${error.response.status}, Details: ${JSON.stringify(error.response.data)}`;
+                    }
+                    
+                    // Show more detailed error message
+                    const errorMessage = error.message || 'Unknown error';
+                    showStatus('Authentication error: ' + errorMessage, 'error');
+                    
+                    // Update UI to show error with more debug info
                     document.querySelector('.loading-container').innerHTML = `
                         <div style="color: #c62828; margin-bottom: 20px;">
                             <svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 24 24" fill="#c62828">
@@ -420,15 +431,32 @@
                             </svg>
                             <p style="margin-top: 10px; font-weight: bold;">Authentication Failed</p>
                         </div>
-                        <p>${error.message}</p>
+                        <p>${errorMessage}</p>
+                        <div style="margin: 15px 0; padding: 10px; background: #f5f5f5; font-size: 12px; text-align: left; border-radius: 4px;">
+                            <strong>Error Code:</strong> ${error.response ? error.response.status : 'N/A'}<br>
+                            <strong>Request:</strong> ${window.location.href.split('?')[0]}<br>
+                            <strong>LinkedIn Client ID:</strong> ${LINKEDIN_CLIENT_ID.substring(0, 3)}...${LINKEDIN_CLIENT_ID.substring(LINKEDIN_CLIENT_ID.length - 3)}<br>
+                            <strong>Redirect URI:</strong> ${REDIRECT_URI}<br>
+                            <strong>PKCE Used:</strong> ${codeVerifier ? 'Yes' : 'No'}<br>
+                            <strong>Error Details:</strong> ${errorDetails || 'No additional details'}
+                        </div>
                         <button id="retryBtn" style="margin-top: 20px; background: #0077b5; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">
                             Try Again
+                        </button>
+                        <button id="debugBtn" style="margin-top: 10px; margin-left: 10px; background: #555555; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">
+                            Enable Debug Mode
                         </button>
                     `;
                     
                     // Add event listener to retry button
                     document.getElementById('retryBtn').addEventListener('click', function() {
                         window.location.href = 'auth.html';
+                    });
+                    
+                    // Add event listener to debug button
+                    document.getElementById('debugBtn').addEventListener('click', function() {
+                        // Redirect to auth page with debug parameter
+                        window.location.href = 'auth.html?debug=true';
                     });
                 });
             } else {
