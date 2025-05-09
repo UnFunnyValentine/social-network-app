@@ -15,12 +15,20 @@ exports.handler = async function(event, context) {
     console.log('Conference details:', { conferenceId, conferenceName, conferenceLocation });
     
     // LinkedIn OAuth Configuration
-    const clientId = process.env.LINKEDIN_CLIENT_ID || '86bd4udvjkab6n';
-    const clientSecret = process.env.LINKEDIN_CLIENT_SECRET || 'WPL_AP1.OgDnI5N7j6k3LOI2.3u7pLw==';
+    const clientId = process.env.LINKEDIN_CLIENT_ID;
+    const clientSecret = process.env.LINKEDIN_CLIENT_SECRET;
     const redirectUri = process.env.REDIRECT_URI || 'https://cholebhature.netlify.app/docs/user/callback.html';
     
     console.log('Using client ID:', clientId);
     console.log('Using redirect URI:', redirectUri);
+    
+    // Add code verifier checking for PKCE flow
+    const codeVerifier = data.code_verifier;
+    if (!codeVerifier) {
+      console.log('Warning: No code_verifier provided. Not using PKCE flow.');
+    } else {
+      console.log('PKCE flow: Code verifier received');
+    }
     
     let accessToken;
     let tokenData;
@@ -33,10 +41,20 @@ exports.handler = async function(event, context) {
       
       // APPROACH 1: Exchange the code for a token using Basic Authentication in the header
       console.log('Trying OAuth approach 1: Basic Auth in header');
+      
+      // Build token request data
+      let tokenRequestData = `grant_type=authorization_code&code=${encodeURIComponent(code)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+      
+      // Add code_verifier for PKCE if available
+      if (codeVerifier) {
+        tokenRequestData += `&code_verifier=${encodeURIComponent(codeVerifier)}`;
+        console.log('Added code_verifier to token request');
+      }
+      
       const tokenResponse = await axios({
         method: 'post',
         url: 'https://www.linkedin.com/oauth/v2/accessToken',
-        data: `grant_type=authorization_code&code=${encodeURIComponent(code)}&redirect_uri=${encodeURIComponent(redirectUri)}`,
+        data: tokenRequestData,
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
           'Authorization': `Basic ${authBase64}`
@@ -53,8 +71,17 @@ exports.handler = async function(event, context) {
       // APPROACH 2: Try with client credentials in the body
       console.log('Trying OAuth approach 2: Credentials in request body');
       try {
+        // Build token request data
+        let tokenRequestData = `grant_type=authorization_code&code=${encodeURIComponent(code)}&client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+        
+        // Add code_verifier for PKCE if available
+        if (codeVerifier) {
+          tokenRequestData += `&code_verifier=${encodeURIComponent(codeVerifier)}`;
+          console.log('Added code_verifier to token request (approach 2)');
+        }
+        
         const tokenResponse = await axios.post('https://www.linkedin.com/oauth/v2/accessToken', 
-          `grant_type=authorization_code&code=${encodeURIComponent(code)}&client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}`, 
+          tokenRequestData, 
           {
             headers: {
               'Content-Type': 'application/x-www-form-urlencoded'
@@ -71,8 +98,18 @@ exports.handler = async function(event, context) {
         
         // APPROACH 3: Try with URL parameters
         console.log('Trying OAuth approach 3: Credentials in URL parameters');
+        
+        // Build token URL with parameters
+        let tokenUrl = `https://www.linkedin.com/oauth/v2/accessToken?grant_type=authorization_code&code=${encodeURIComponent(code)}&client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+        
+        // Add code_verifier for PKCE if available
+        if (codeVerifier) {
+          tokenUrl += `&code_verifier=${encodeURIComponent(codeVerifier)}`;
+          console.log('Added code_verifier to token request (approach 3)');
+        }
+        
         const tokenResponse = await axios.post(
-          `https://www.linkedin.com/oauth/v2/accessToken?grant_type=authorization_code&code=${encodeURIComponent(code)}&client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}`,
+          tokenUrl,
           null,
           {
             headers: {
