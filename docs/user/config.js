@@ -19,7 +19,7 @@ const CONFIG = {
         '/api',
         
     // Required LinkedIn API scopes
-    LINKEDIN_SCOPES: ['r_liteprofile', 'openid', 'profile', 'email'],
+    LINKEDIN_SCOPES: ['r_basicprofile', 'openid', 'profile', 'email'],
     
     // Check if running in Capacitor
     isRunningInCapacitor: function() {
