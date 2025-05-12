@@ -317,10 +317,13 @@
                 // Get code verifier from session storage for PKCE
                 const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
                 if (codeVerifier) {
-                    console.log('Retrieved PKCE code verifier from session storage');
+                    console.log('Retrieved PKCE code verifier from session storage (length: ' + codeVerifier.length + ')');
                 } else {
                     console.log('No PKCE code verifier found in session storage, continuing without PKCE');
                 }
+                
+                console.log('Code:', code ? 'Present (first 10 chars: ' + code.substring(0, 10) + '...)' : 'Missing');
+                console.log('PKCE enabled:', codeVerifier ? 'Yes' : 'No');
                 
                 // Exchange code for token using our Netlify function
                 fetch('/.netlify/functions/linkedin-token', {
