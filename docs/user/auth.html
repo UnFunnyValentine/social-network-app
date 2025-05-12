@@ -237,19 +237,6 @@
             return text;
         }
 
-        async function generateCodeChallenge(codeVerifier) {
-            // Create a SHA-256 hash of the code verifier
-            const encoder = new TextEncoder();
-            const data = encoder.encode(codeVerifier);
-            const digest = await window.crypto.subtle.digest('SHA-256', data);
-            
-            // Convert the hash to base64-url format
-            return btoa(String.fromCharCode.apply(null, new Uint8Array(digest)))
-                .replace(/\+/g, '-')
-                .replace(/\//g, '_')
-                .replace(/=+$/, '');
-        }
-
         // Check if running in Capacitor
         function isRunningInCapacitor() {
             return (window.Capacitor !== undefined && window.Capacitor.isNative === true);
@@ -349,25 +336,6 @@
                 console.log('Using LinkedIn scopes:', LINKEDIN_SCOPES);
                 console.log('Redirect URI:', REDIRECT_URI);
                 
-                // Generate PKCE code verifier and challenge
-                const CODE_VERIFIER = generateRandomString(128); // Increase length to 128 for stronger security
-                let CODE_CHALLENGE;
-                
-                try {
-                    CODE_CHALLENGE = await generateCodeChallenge(CODE_VERIFIER);
-                    console.log('Generated PKCE code challenge');
-                    console.log('Code verifier length:', CODE_VERIFIER.length);
-                    console.log('Code challenge length:', CODE_CHALLENGE.length);
-                    
-                    // Store code verifier for later use
-                    sessionStorage.setItem('pkce_code_verifier', CODE_VERIFIER);
-                    console.log('Stored PKCE code verifier in session storage');
-                } catch (cryptoError) {
-                    console.error('Error generating code challenge:', cryptoError);
-                    // Fallback to simpler authentication without PKCE if crypto fails
-                    throw new Error('Failed to generate secure authentication request. Your browser might not support required security features.');
-                }
-                
                 // Create state parameter with conference details
                 const stateData = {
                     conferenceId,
@@ -380,14 +348,12 @@
                 const previouslyAuthenticated = localStorage.getItem('isAuthenticated') === 'true' && 
                                                localStorage.getItem('linkedInUser');
                 
-                // Construct LinkedIn OAuth URL with PKCE and the proper scopes
+                // Construct LinkedIn OAuth URL with standard OAuth 2.0 flow
                 const linkedInAuthUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
                     `response_type=code&` +
                     `client_id=${encodeURIComponent(LINKEDIN_CLIENT_ID)}&` +
                     `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
                     `scope=${encodeURIComponent(LINKEDIN_SCOPES)}&` +
-                    `code_challenge=${encodeURIComponent(CODE_CHALLENGE)}&` +
-                    `code_challenge_method=S256&` +
                     // Add prompt parameter - "none" tries to use existing session without prompting
                     // If user wasn't previously authenticated, use "select_account" to ensure they can choose account
                     `prompt=${previouslyAuthenticated ? 'consent' : 'consent'}&` +
@@ -410,7 +376,7 @@
                         <p>Client ID: ${LINKEDIN_CLIENT_ID.substring(0, 3)}...${LINKEDIN_CLIENT_ID.substring(LINKEDIN_CLIENT_ID.length - 3)}</p>
                         <p>Redirect URI: ${REDIRECT_URI}</p>
                         <p>Scopes: ${LINKEDIN_SCOPES}</p>
-                        <p>PKCE Used: Yes</p>
+                        <p>Using Standard OAuth: Yes</p>
                     `;
                     statusMessage.style.display = 'block';
                 }
