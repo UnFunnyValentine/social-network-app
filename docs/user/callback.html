@@ -314,16 +314,7 @@
 
                 logDebug('Conference data in callback:', { conferenceId, conferenceName, conferenceLocation });
                 
-                // Get code verifier from session storage for PKCE
-                const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
-                if (codeVerifier) {
-                    console.log('Retrieved PKCE code verifier from session storage (length: ' + codeVerifier.length + ')');
-                } else {
-                    console.log('No PKCE code verifier found in session storage, continuing without PKCE');
-                }
-                
                 console.log('Code:', code ? 'Present (first 10 chars: ' + code.substring(0, 10) + '...)' : 'Missing');
-                console.log('PKCE enabled:', codeVerifier ? 'Yes' : 'No');
                 
                 // Exchange code for token using our Netlify function
                 fetch('/.netlify/functions/linkedin-token', {
@@ -333,7 +324,6 @@
                     },
                     body: JSON.stringify({ 
                         code,
-                        code_verifier: codeVerifier,
                         fromApp: isFromApp || isAppCallback,
                         // Pass conference info to ensure it's preserved
                         conferenceId,
@@ -440,7 +430,6 @@
                             <strong>Request:</strong> ${window.location.href.split('?')[0]}<br>
                             <strong>LinkedIn Client ID:</strong> ${LINKEDIN_CLIENT_ID.substring(0, 3)}...${LINKEDIN_CLIENT_ID.substring(LINKEDIN_CLIENT_ID.length - 3)}<br>
                             <strong>Redirect URI:</strong> ${REDIRECT_URI}<br>
-                            <strong>PKCE Used:</strong> ${codeVerifier ? 'Yes' : 'No'}<br>
                             <strong>Error Details:</strong> ${errorDetails || 'No additional details'}
                         </div>
                         <button id="retryBtn" style="margin-top: 20px; background: #0077b5; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">
