@@ -70,24 +70,6 @@ exports.handler = async function(event, context) {
       };
     }
     
-    // Add code verifier checking for PKCE flow
-    const codeVerifier = data.code_verifier;
-    if (!codeVerifier) {
-      console.log('Warning: No code_verifier provided. Not using PKCE flow.');
-    } else {
-      console.log('PKCE flow: Code verifier received (length: ' + codeVerifier.length + ')');
-      
-      // If code verifier is too short or invalid format, log a warning
-      if (codeVerifier.length < 43 || codeVerifier.length > 128) {
-        console.warn('Warning: Code verifier length is outside recommended range (43-128 chars)');
-      }
-      
-      // Check if code verifier contains valid characters (A-Z, a-z, 0-9, underscore, period, hyphen, tilde)
-      if (!/^[A-Za-z0-9\-._~]+$/.test(codeVerifier)) {
-        console.warn('Warning: Code verifier contains invalid characters');
-      }
-    }
-    
     let accessToken;
     let tokenData;
     
@@ -102,12 +84,6 @@ exports.handler = async function(event, context) {
       
       // Build token request data
       let tokenRequestData = `grant_type=authorization_code&code=${encodeURIComponent(code)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
-      
-      // Add code_verifier for PKCE if available
-      if (codeVerifier) {
-        tokenRequestData += `&code_verifier=${encodeURIComponent(codeVerifier)}`;
-        console.log('Added code_verifier to token request');
-      }
       
       // Debug info - mask sensitive data
       console.log('Token request data:', tokenRequestData.replace(code, '[CODE HIDDEN]'));
@@ -136,12 +112,6 @@ exports.handler = async function(event, context) {
         // Build token request data
         let tokenRequestData = `grant_type=authorization_code&code=${encodeURIComponent(code)}&client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
         
-        // Add code_verifier for PKCE if available
-        if (codeVerifier) {
-          tokenRequestData += `&code_verifier=${encodeURIComponent(codeVerifier)}`;
-          console.log('Added code_verifier to token request (approach 2)');
-        }
-        
         // Debug info - mask sensitive data
         console.log('Token request data (approach 2):', tokenRequestData
           .replace(code, '[CODE HIDDEN]')
@@ -168,12 +138,6 @@ exports.handler = async function(event, context) {
         
         // Build token URL with parameters
         let tokenUrl = `https://www.linkedin.com/oauth/v2/accessToken?grant_type=authorization_code&code=${encodeURIComponent(code)}&client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
-        
-        // Add code_verifier for PKCE if available
-        if (codeVerifier) {
-          tokenUrl += `&code_verifier=${encodeURIComponent(codeVerifier)}`;
-          console.log('Added code_verifier to token request (approach 3)');
-        }
         
         // Debug info - mask sensitive data
         console.log('Token URL (approach 3):', tokenUrl
