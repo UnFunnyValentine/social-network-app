@@ -350,12 +350,14 @@
                 console.log('Redirect URI:', REDIRECT_URI);
                 
                 // Generate PKCE code verifier and challenge
-                const CODE_VERIFIER = generateRandomString(64);
+                const CODE_VERIFIER = generateRandomString(128); // Increase length to 128 for stronger security
                 let CODE_CHALLENGE;
                 
                 try {
                     CODE_CHALLENGE = await generateCodeChallenge(CODE_VERIFIER);
                     console.log('Generated PKCE code challenge');
+                    console.log('Code verifier length:', CODE_VERIFIER.length);
+                    console.log('Code challenge length:', CODE_CHALLENGE.length);
                     
                     // Store code verifier for later use
                     sessionStorage.setItem('pkce_code_verifier', CODE_VERIFIER);
