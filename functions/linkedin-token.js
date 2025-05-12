@@ -76,6 +76,16 @@ exports.handler = async function(event, context) {
       console.log('Warning: No code_verifier provided. Not using PKCE flow.');
     } else {
       console.log('PKCE flow: Code verifier received (length: ' + codeVerifier.length + ')');
+      
+      // If code verifier is too short or invalid format, log a warning
+      if (codeVerifier.length < 43 || codeVerifier.length > 128) {
+        console.warn('Warning: Code verifier length is outside recommended range (43-128 chars)');
+      }
+      
+      // Check if code verifier contains valid characters (A-Z, a-z, 0-9, underscore, period, hyphen, tilde)
+      if (!/^[A-Za-z0-9\-._~]+$/.test(codeVerifier)) {
+        console.warn('Warning: Code verifier contains invalid characters');
+      }
     }
     
     let accessToken;
